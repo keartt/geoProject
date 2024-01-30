@@ -4,5 +4,6 @@
 <configuration>
     <typeAliases>
 		<typeAlias alias="egovMap" type="egovframework.rte.psl.dataaccess.util.EgovMap"/>
+        <typeAlias alias="FileVO" type="geoProject.file.service.FileVO"/>
     </typeAliases>
 </configuration>

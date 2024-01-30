@@ -6,9 +6,13 @@
      
     <bean id="dataSource" class="org.springframework.jdbc.datasource.SimpleDriverDataSource">
         <property name="driverClass" value="org.postgresql.Driver"/>
-        <property name="url" value="${local.postgres.url}"/>
-        <property name="username" value="${local.postgres.id}"/>
-        <property name="password" value="${local.postgres.pw}"/>
+        <property name="url" value="${Globals.postgresql.url}"/>
+        <property name="username" value="${Globals.postgresql.username}"/>
+        <property name="password" value="${Globals.postgresql.password}"/>
     </bean>
-    
+
+    <jdbc:initialize-database data-source="dataSource">
+        <jdbc:script location="classpath:egovframework/sql/create.sql"/>
+    </jdbc:initialize-database>
+
 </beans>

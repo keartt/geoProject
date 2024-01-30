@@ -1,0 +1,16 @@
+.DS_Store
+
+target/
+.idea
+# IntelliJ IDEA
+**/*.iml
+**/*.ipr
+**/*.iws
+**/.idea/
+
+# Eclipse
+**/.classpath
+**/.project
+**/.factorypath
+**/target/
+**/.settings/
