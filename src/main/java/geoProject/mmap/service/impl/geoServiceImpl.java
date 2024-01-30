@@ -45,6 +45,10 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
         return publisher;
     }
 
+    public String getWorkSpace(){
+        return workspace;
+    }
+
     @Override
     public boolean createDataStrore(String userId) {
         GSPostGISDatastoreEncoder datastoreEncoder = new GSPostGISDatastoreEncoder();

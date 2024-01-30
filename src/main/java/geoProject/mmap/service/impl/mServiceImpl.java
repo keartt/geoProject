@@ -20,7 +20,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static geoProject.mmap.service.myUtil.*;
 
@@ -34,7 +37,6 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
 
     @Override
     public String[] getGeomType(MultipartFile zipFile, String layerId) throws IOException {
-
         String geomType;
         String ctResult;
         Path tempDir = null;
@@ -53,24 +55,21 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 ctResult = createTableByShp(shpFilePath, layerId);
             }
         } finally {
-            if (tempDir != null) {
-                // 디렉토리 내 파일 및 하위 디렉토리 삭제
-                Files.walk(tempDir)
-                        .sorted(Comparator.reverseOrder())
-                        .map(Path::toFile)
-                        .forEach(File::delete);
-                Files.deleteIfExists(tempDir);
-            }
+            // 디렉토리 내 파일 및 하위 디렉토리 삭제
+            Files.walk(tempDir)
+                    .sorted(Comparator.reverseOrder())
+                    .map(Path::toFile)
+                    .forEach(File::delete);
+            Files.deleteIfExists(tempDir);
         }
         return new String[]{geomType, ctResult};
     }
 
-    private String getShapefileGeomType(Path shpFilePath) {
+    @Override
+    public String getShapefileGeomType(Path shpFilePath) {
         String geomType = null;
 
         try {
-            Map<String, Object> map = new HashMap<>();
-            map.put("url", shpFilePath.toUri().toURL());
             FileDataStore dataStore = FileDataStoreFinder.getDataStore(shpFilePath.toFile());
             if (dataStore != null) {
                 FeatureSource<SimpleFeatureType, SimpleFeature> featureSource = dataStore.getFeatureSource();
@@ -95,7 +94,8 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
         return geomType;
     }
 
-    private String createTableByShp(Path shpFilePath, String layerId) throws IOException {
+    @Override
+    public String createTableByShp(Path shpFilePath, String layerId) throws IOException {
         String ctResult = "fail"; // 초기값을 실패로 설정
         DefaultTransaction transaction = new DefaultTransaction("createTableTransaction");
 
@@ -114,7 +114,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 CoordinateReferenceSystem crs = schema.getCoordinateReferenceSystem();
                 System.out.println("Coordinate Reference System: " + crs);
                 crs = CRS.decode("EPSG:5187");
-                System.out.println("espg -> "+crs);
+                System.out.println("espg -> " + crs);
                 builder.setCRS(crs);
 
                 // builder.add("geometry", Polygon.class);
@@ -142,24 +142,18 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 // 트랜잭션 커밋
                 transaction.commit();
                 ctResult = "SUCCESS";
-            }else{
-                System.out.println("dataStore is Nul Fail");
+            } else {
+                ctResult = "dataStore is Nul Fail";
             }
         } catch (Exception e) {
+            ctResult = e.getMessage();
             e.printStackTrace();
             // 트랜잭션 롤백
             transaction.rollback();
         } finally {
-            if (transaction != null) {
-                transaction.close();
-            }
+            transaction.close();
         }
         return ctResult;
-    }
-
-    @Override
-    public int createFileDB(MultipartHttpServletRequest file) {
-        return 0;
     }
 
     @Override
@@ -171,4 +165,5 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
     public int insertPublicDept(Map<String, Object> params) {
         return mDAO.insertPublicDept(params);
     }
+
 }

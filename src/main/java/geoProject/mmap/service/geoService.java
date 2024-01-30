@@ -10,6 +10,8 @@ public interface geoService {
     public GeoServerRESTReader getReader() throws MalformedURLException;
     public GeoServerRESTPublisher getPublisher();
 
+    public String getWorkSpace();
+
     boolean createDataStrore(String userId);
 
     public boolean publishLayer(String userId, String layerId);

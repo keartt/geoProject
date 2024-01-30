@@ -48,53 +48,45 @@ public class mController {
     @RequestMapping("/testAll.do")
     public String testAll(Model model, MultipartHttpServletRequest multiRequest) throws Exception {
         Map<String, Object> params = extractParams(multiRequest);
-        String layerId = idGen.getNextStringId();
+        String layerId = idGen.getNextStringId();           model.addAttribute("layerId", layerId);                     //layerId 생성
 
         params.put("layerId", layerId);
-        int result = mService.insertLayerInfo(params);          // layer 정보
-        int result2 = mService.insertPublicDept(params);        // layer 공개범위
-        model.addAttribute("layerId", layerId);
-        model.addAttribute("layer Table Create", result);
-        model.addAttribute("Dept Table InsertC ount", result2);
+        int result = mService.insertLayerInfo(params);      model.addAttribute("layer Table Create", result);           // layer 정보
+        int result2 = mService.insertPublicDept(params);    model.addAttribute("Dept Table Insert Count", result2);     // layer 공개범위
 
-        // 파일은 여기서 처리
-        Iterator<String> fileNames = multiRequest.getFileNames();
-        while (fileNames.hasNext()) {
-            String fileName = fileNames.next();
-            MultipartFile file = multiRequest.getFile(fileName);
+        Iterator<String> fileNamesIterator = multiRequest.getFileNames();
+        if (!fileNamesIterator.hasNext()) {
+            model.addAttribute("error", "file is none");
+        } else {
+            MultipartFile file = multiRequest.getFile(fileNamesIterator.next());
             String[] geomType = mService.getGeomType(file, layerId);
             model.addAttribute("Shp File geomType", geomType[0]);    // 지옴타입 반환
             model.addAttribute("create Table by Shp", geomType[1]);    // 디비생성 성공여부
-        }
 
-//        multiRequest.setAttribute("atchfileId",layerId);
-//        fileService.insertFileUpload(multiRequest);     // 파일 원본 zip 파일 저장
+            // 파일 저장
+            String userId = multiRequest.getParameter("userId");
+            Map<String, MultipartFile> files = multiRequest.getFileMap();
+            List<FileVO> fileList = egovFileMngUtil.parseFileInf(files, geoService.getWorkSpace(), layerId, userId);
+            fileDAO.insertFileUpload(fileList);
 
-        String userId = multiRequest.getParameter("userId");
-        Map<String, MultipartFile> files = multiRequest.getFileMap();
-        List<FileVO> fileList = egovFileMngUtil.parseFileInf(files, "mmap", layerId, userId);
-        fileDAO.insertFileUpload(fileList);
-
-//        Object obj = params.get("userId");
-//        String userId = obj.toString();
-
-        if (geoService.getReader().getDatastore("mmap", userId) != null) {
-            model.addAttribute("userNameStore", "EXIST-" + userId);
-        } else {
-            model.addAttribute("userNameStore", "NOPE");
-            if (geoService.createDataStrore(userId)) {
-                model.addAttribute("createStore as username", "SUCCESS-" + userId);
+            // 유저 아이디 저장소 확인 & 생성
+            if (geoService.getReader().getDatastore(geoService.getWorkSpace(), userId) != null) {
+                model.addAttribute("userNameStore", "EXIST-" + userId);
             } else {
-                model.addAttribute("createStore as username", "FAIL");
+                if (geoService.createDataStrore(userId)) {
+                    model.addAttribute("createStore as username", "SUCCESS-" + userId);
+                } else {
+                    model.addAttribute("createStore as username", "FAIL");
+                    return "jsonView";
+                }
+            }
+            // 지오서버 레이어 발행
+            if (geoService.publishLayer(userId, layerId)) {
+                model.addAttribute("publishLayer by Table", "SUCCESS");
+            } else {
+                model.addAttribute("publishLayer by Table", "FAIL");
             }
         }
-
-        if (geoService.publishLayer(userId, layerId)) {
-            model.addAttribute("publishLayer by Table", "SUCCESS");
-        } else {
-            model.addAttribute("publishLayer by Table", "FAIL");
-        }
-
 
         return "jsonView";
     }
@@ -149,7 +141,6 @@ public class mController {
     public String insertFileUpload(Model model, MultipartHttpServletRequest multiRequest) {
         try {
             fileService.insertFileUpload(multiRequest);         // zip file save in directory
-            mService.createFileDB(multiRequest);                // create table by shp.zip
 
             String layerId = multiRequest.getParameter("atchfileId");
             String userId = multiRequest.getParameter("userId");
@@ -165,8 +156,7 @@ public class mController {
     @Description("사용자명 지오서버 저장소 확인 및 없으면 PostGis 저장소 생성")
     @RequestMapping("/chkGeoStore.do")
     public String chkGeoStore(@RequestParam(value = "userId", defaultValue = "1111") String userId, Model model) throws MalformedURLException, URISyntaxException {
-        String workspace = "mmap";
-        if (geoService.getReader().getDatastore(workspace, userId) != null) {
+        if (geoService.getReader().getDatastore(geoService.getWorkSpace(), userId) != null) {
             model.addAttribute("store", "exist");
         } else {
             model.addAttribute("store", "nope");
