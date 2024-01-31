@@ -17,7 +17,7 @@
             height: 800px;
         }
     </style>
-    <script type="text/javascript" src="<c:url value="/js/lib/ol/proj4.js" />"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.6.1/proj4.js"></script>
     <script type="text/javascript" src="<c:url value="/js/shp2geoJS/jszip.js" />"></script>
     <script type="text/javascript" src="<c:url value="/js/shp2geoJS/preprocess.js" />"></script>
     <script type="text/javascript" src="<c:url value="/js/shp2geoJS/preview.js" />"></script>
