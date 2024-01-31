@@ -24,67 +24,72 @@ function loadshp(config, returnData) {
     inputData = {};
     url = config.url;
     encoding = typeof config.encoding != 'utf-8' ? config.encoding : 'utf-8';
-    EPSG = typeof config.EPSG != 'undefined' ? config.EPSG : 5187;
+    // EPSG = typeof config.EPSG != 'undefined' ? config.EPSG : 5187;
+    EPSG = typeof config.EPSG != 'undefined' ? config.EPSG : 4326;
 
-    // 원본 :  loadEPSG('https://epsg.io/'+ESPG'+.js', ()=> { })
-    proj4.defs("EPSG:5187", "+proj=tmerc +lat_0=38 +lon_0=129 +k=1 +x_0=200000 +y_0=600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs");
-    EPSGUser = proj4('EPSG:' + EPSG);
+    // proj4.defs("EPSG:5187", "+proj=tmerc +lat_0=38 +lon_0=129 +k=1 +x_0=200000 +y_0=600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs");
+    loadEPSG('//epsg.io/'+EPSG+'.js', function() {
+        if (EPSG == 3821)
+            proj4.defs([
+                ['EPSG:3821', '+proj=tmerc +ellps=GRS67 +towgs84=-752,-358,-179,-.0000011698,.0000018398,.0000009822,.00002329 +lat_0=0 +lon_0=121 +x_0=250000 +y_0=0 +k=0.9999 +units=m +no_defs']
+            ]);
+        EPSGUser = proj4('EPSG:' + EPSG);
 
-    if (typeof url != 'string') {
-        var reader = new FileReader();
-        reader.onload = function (e) {
-            var URL = window.URL || window.webkitURL || window.mozURL || window.msURL,
-                zip = new JSZip(e.target.result),
-                shpString = zip.file(/.shp$/i)[0] ? zip.file(/.shp$/i)[0]?.name : false,
-                dbfString = zip.file(/.dbf$/i)[0] ? zip.file(/.dbf$/i)[0].name : false,
-                prjString = zip.file(/.prj$/i)[0];
+        if (typeof url != 'string') {
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                var URL = window.URL || window.webkitURL || window.mozURL || window.msURL,
+                    zip = new JSZip(e.target.result),
+                    shpString = zip.file(/.shp$/i)[0] ? zip.file(/.shp$/i)[0]?.name : false,
+                    dbfString = zip.file(/.dbf$/i)[0] ? zip.file(/.dbf$/i)[0].name : false,
+                    prjString = zip.file(/.prj$/i)[0];
 
-            if (!shpString || !dbfString) {
-                MAIN.alert('error', '(shp, dbf) 확장자가 포함되어 있지 않습니다.');
-                throw new Error('(shp, dbf) 확장자가 포함되어 있지 않습니다.');
-            }
-
-            if (prjString) {
-                proj4.defs('EPSGUSER', zip.file(prjString.name).asText());
-                try {
-                    EPSGUser = proj4('EPSGUSER');
-                } catch (e) {0
-                    console.error('Unsuported Projection: ' + e);
+                if (!shpString || !dbfString) {
+                    alert('(shp, dbf) 확장자가 포함되어 있지 않습니다.');
+                    throw new Error('(shp, dbf) 확장자가 포함되어 있지 않습니다.');
                 }
-            } else {
-                MAIN.alert('warning', 'prj 파일이 없습니다. <br> 좌표계가 맞지 않아 지도에 뜨지 않을 수 있습니다.');
+
+                if (prjString) {
+                    proj4.defs('EPSGUSER', zip.file(prjString.name).asText());
+                    try {
+                        EPSGUser = proj4('EPSGUSER');
+                    } catch (e) {0
+                        console.error('Unsuported Projection: ' + e);
+                    }
+                } else {
+                    alert('prj 파일이 없습니다. <br> 좌표계가 맞지 않아 지도에 뜨지 않을 수 있습니다.');
+                }
+
+                SHPParser.load(URL.createObjectURL(new Blob([zip.file(shpString).asArrayBuffer()])), shpLoader, returnData);
+                DBFParser.load(URL.createObjectURL(new Blob([zip.file(dbfString).asArrayBuffer()])), encoding, dbfLoader, returnData);
             }
 
-            SHPParser.load(URL.createObjectURL(new Blob([zip.file(shpString).asArrayBuffer()])), shpLoader, returnData);
-            DBFParser.load(URL.createObjectURL(new Blob([zip.file(dbfString).asArrayBuffer()])), encoding, dbfLoader, returnData);
+            reader.readAsArrayBuffer(url);
+        } else {
+            JSZipUtils.getBinaryContent(url, function (err, data) {
+                if (err) throw err;
+
+                var URL = window.URL || window.webkitURL,
+                    zip = new JSZip(data),
+                    shpString = zip.file(/.shp$/i)[0].name,
+                    dbfString = zip.file(/.dbf$/i)[0].name,
+                    prjString = zip.file(/.prj$/i)[0];
+                if (prjString) {
+                    proj4.defs('EPSGUSER', zip.file(prjString.name).asText());
+                    try {
+                        EPSGUser = proj4('EPSGUSER');
+                    } catch (e) {
+                        console.error('Unsuported Projection: ' + e);
+                    }
+                }
+
+                SHPParser.load(URL.createObjectURL(new Blob([zip.file(shpString).asArrayBuffer()])), shpLoader, returnData);
+                DBFParser.load(URL.createObjectURL(new Blob([zip.file(dbfString).asArrayBuffer()])), encoding, dbfLoader, returnData);
+
+            });
         }
 
-        reader.readAsArrayBuffer(url);
-    } else {
-        JSZipUtils.getBinaryContent(url, function (err, data) {
-            if (err) throw err;
-
-            var URL = window.URL || window.webkitURL,
-                zip = new JSZip(data),
-                shpString = zip.file(/.shp$/i)[0].name,
-                dbfString = zip.file(/.dbf$/i)[0].name,
-                prjString = zip.file(/.prj$/i)[0];
-            if (prjString) {
-                proj4.defs('EPSGUSER', zip.file(prjString.name).asText());
-                try {
-                    EPSGUser = proj4('EPSGUSER');
-                } catch (e) {
-                    console.error('Unsuported Projection: ' + e);
-                }
-            }
-
-            SHPParser.load(URL.createObjectURL(new Blob([zip.file(shpString).asArrayBuffer()])), shpLoader, returnData);
-            DBFParser.load(URL.createObjectURL(new Blob([zip.file(dbfString).asArrayBuffer()])), encoding, dbfLoader, returnData);
-
-        });
-    }
-
-
+    })
 }
 
 function loadEPSG(url, callback) {

@@ -12,7 +12,6 @@ import org.opengis.feature.type.GeometryDescriptor;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.multipart.MultipartHttpServletRequest;
 import geoProject.mmap.service.mService;
 
 import javax.annotation.Resource;
@@ -48,7 +47,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                     .findFirst()
                     .orElse(null);
             geomType = "no .shp file";
-            ctResult = "create table fail";
+            ctResult = geomType;
             if (shpFileName != null) {
                 Path shpFilePath = tempDir.resolve(shpFileName);
                 geomType = getShapefileGeomType(shpFilePath);
@@ -97,6 +96,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
     @Override
     public String createTableByShp(Path shpFilePath, String layerId) throws IOException {
         String ctResult = "fail"; // 초기값을 실패로 설정
+
         DefaultTransaction transaction = new DefaultTransaction("createTableTransaction");
 
         try {

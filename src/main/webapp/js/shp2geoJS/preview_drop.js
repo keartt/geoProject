@@ -1,4 +1,19 @@
-function testDropShp () {
+$( document ).ready(function() {
+    const map = new ol.Map({
+        target: 'map',
+        layers: [
+            new ol.layer.Tile({
+                source: new ol.source.OSM(),
+            }),
+        ],
+        view: new ol.View({
+            center: ol.proj.fromLonLat([0, 0]),
+            zoom: 2,
+        }),
+    });
+    testDropShp();
+
+    function testDropShp () {
         map.getViewport().addEventListener('dragover', function (event) {
             event.preventDefault();
         });
@@ -60,16 +75,13 @@ function testDropShp () {
                         }
                     }
 
-                    var shpLayer = new ol.layer.Tile({
+                    var shpLayer = new ol.layer.Vector({
                         name: 'shpLayer',
-                        source: new ol.source.TileImageVector({
-                            source: new ol.source.Vector({
-                                features: features,
-                                useSpatialIndex: true,
-                                wrapX: false
-                            }),
-                            style: style
-                        })
+                        source: new ol.source.Vector({
+                            features: features,
+                            useSpatialIndex: true,
+                            wrapX: false
+                        }),
                     });
                     map.addLayer(shpLayer);
 
@@ -87,3 +99,5 @@ function testDropShp () {
         });
 
     }
+});
+

@@ -12,5 +12,10 @@ public class MainController {
 		return "main";
 	}
 
+	@RequestMapping("/shp2geoJS.do")
+	public String shp2geoJs() {
+		return "shp2geoJS";
+	}
+
 }
 

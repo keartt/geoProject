@@ -1,6 +1,18 @@
-    /**
-     * 사용자 shp 파일 업로드
-     */
+$( document ).ready(function() {
+    const map = new ol.Map({
+        target: 'map',
+        layers: [
+            new ol.layer.Tile({
+                source: new ol.source.OSM(),
+            }),
+        ],
+        view: new ol.View({
+            center: ol.proj.fromLonLat([126.9770, 37.5665]),
+            zoom: 2,
+        }),
+    });
+});
+
 var SHP = {
         init: function () {
             $('.fileAttach.mmap').click(() => $('#mmapFile').click())
@@ -14,7 +26,7 @@ var SHP = {
                     var maxSize = [30 * 1024 * 1024, '30MB' ];
 
                     if (fileSize > maxSize[0]) {
-                        MAIN.alert('warning', '파일 크기 ' +maxSize[1] + '초과!! <br>다른 파일을 선택해주세요.');
+                        alert('파일 크기 ' +maxSize[1] + '초과!! <br>다른 파일을 선택해주세요.');
                         return;
                     }
 
@@ -29,11 +41,11 @@ var SHP = {
             $('.btn_next').click(function () {
                 var ok = true;
                 if (!$('.upload-name').val()) {
-                    MAIN.alert('warning', '파일을 선택해주세요');
+                    alert('파일을 선택해주세요');
                     ok = false;
                 }
                 if (geometryType == 'noShp') {
-                    MAIN.alert('warning', '파일을 다시 선택해주세요');
+                    alert('파일을 다시 선택해주세요');
                     ok = false;
                 }
 
