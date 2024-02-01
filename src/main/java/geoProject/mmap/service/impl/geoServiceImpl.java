@@ -35,6 +35,7 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
         workspace = "mmap";
         this.reader = new GeoServerRESTReader(url, user, password);
         this.publisher = new GeoServerRESTPublisher(url, user, password);
+//        this.publisher.createWorkspace(workspace);
     }
 
     public GeoServerRESTReader getReader(){

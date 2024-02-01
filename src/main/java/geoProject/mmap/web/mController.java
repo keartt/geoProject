@@ -45,6 +45,19 @@ public class mController {
     private EgovFileMngUtil egovFileMngUtil;
     private static final Logger LOGGER = LoggerFactory.getLogger(mController.class);
 
+    @RequestMapping("/test2.do")
+    public String test2(Model model, MultipartHttpServletRequest multiRequest){
+        String userId = multiRequest.getParameter("id");
+        boolean isSave = Boolean.parseBoolean(multiRequest.getParameter("isSave"));
+        System.out.println(userId);
+        System.out.println(isSave);
+        String test = multiRequest.getParameter("test");
+        if(test != null){
+            System.out.println(test);
+        }
+        return "jsonView";
+    }
+
     @RequestMapping("/testAll.do")
     public String testAll(Model model, MultipartHttpServletRequest multiRequest) throws Exception {
         Map<String, Object> params = extractParams(multiRequest);

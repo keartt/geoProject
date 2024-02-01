@@ -2,9 +2,14 @@ package geoProject.mmap.service.impl;
 
 import egovframework.rte.fdl.cmmn.EgovAbstractServiceImpl;
 import geoProject.mmap.service.mService;
-import org.geotools.data.FileDataStore;
-import org.geotools.data.FileDataStoreFinder;
+import org.geotools.data.*;
+import org.geotools.data.simple.SimpleFeatureStore;
+import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
+import org.geotools.referencing.CRS;
 import org.opengis.feature.simple.SimpleFeatureType;
+import org.opengis.feature.type.AttributeDescriptor;
+import org.opengis.feature.type.GeometryDescriptor;
+import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
@@ -20,6 +25,8 @@ import java.util.Properties;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static geoProject.mmap.service.myUtil.getPostgisInfo;
+
 public class RefactoringImpl extends EgovAbstractServiceImpl implements mService {
     @Resource(name = "mDAO")
     private mDAO mDAO;
@@ -27,9 +34,9 @@ public class RefactoringImpl extends EgovAbstractServiceImpl implements mService
     @Resource(name = "globalProperties")
     Properties globalProperties;
 
-    public Path unZip2(MultipartFile zipFile) throws IOException {
-
+    private Path unZip2(MultipartFile zipFile) throws IOException {
         Path shpFileTempPath = Files.createTempDirectory("shp-upload");
+        System.out.println(shpFileTempPath);
 
         ZipInputStream zis = new ZipInputStream(zipFile.getInputStream());
         ZipEntry zipEntry;
@@ -42,43 +49,90 @@ public class RefactoringImpl extends EgovAbstractServiceImpl implements mService
                 .findFirst()
                 .orElse(null);
         if (shpFileName == null) {
+            deleteTemp(shpFileTempPath);
             return null;
         }
         return shpFileTempPath;
     }
 
-    public String getgetShapefileGeomType1(MultipartFile zipFile) throws IOException {
-        String geomType = null;
+    public String getShapefileGeomType2(MultipartFile zipFile) throws IOException {
         Path shpFilePath = null;
-        FileDataStore dataStore = null;
-        SimpleFeatureType schema;
-
         try {
             shpFilePath = unZip2(zipFile);
-            if(shpFilePath == null){
-                return "no .shp file";
+            if (shpFilePath == null) {
+                return "no .shp file / zip file error";
+            }
+            FileDataStore dataStore = FileDataStoreFinder.getDataStore(shpFilePath.toFile());
+            if (dataStore != null) {
+                SimpleFeatureType schema = dataStore.getFeatureSource().getSchema();
+                return (schema != null) ? schema.getGeometryDescriptor().getType().getName().getLocalPart() : "geotoolsError Getschema";
+            } else {
+                return "geotoolsError GetdataStore";
             }
         } catch (IOException e) {
-            return e.getMessage() + " unzip error";
+            return "I/O error: " + e.getMessage();
+        } finally {
+            if (shpFilePath != null) {
+                deleteTemp(shpFilePath);
+            }
         }
-
-        try {
-            dataStore = FileDataStoreFinder.getDataStore(shpFilePath.toFile());
-        } catch (Exception e) {
-            geomType = e.getMessage() + ", geotoolsError GetdataStore";
-            return geomType;
-        }
-
-        try {
-            schema = dataStore.getFeatureSource().getSchema();
-            geomType = schema.getGeometryDescriptor().getType().getName().getLocalPart();
-        } catch (Exception e) {
-            geomType = e.getMessage() + ", geotoolsError Getschema";
-        }
-
-        deleteTemp(shpFilePath);
-        return geomType;
     }
+
+    public String createTableByShp2(MultipartFile zipFile, String layerId) throws IOException {
+        DefaultTransaction transaction = new DefaultTransaction("createTableTransaction");
+        try {
+            Path shpFilePath = unZip2(zipFile);
+            if (shpFilePath == null) {
+                return "no .shp file / zip file error";
+            }
+
+            Map<String, Object> params = getPostgisInfo(globalProperties);
+            DataStore dataStore = DataStoreFinder.getDataStore(params);
+
+            if (dataStore == null) {
+                return "dataStore is Null error";
+            }
+
+            FileDataStore fileDataStore = FileDataStoreFinder.getDataStore(shpFilePath.toFile());
+            SimpleFeatureType schema = fileDataStore.getSchema();
+
+            SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
+            builder.setName(layerId);
+
+            CoordinateReferenceSystem crs = schema.getCoordinateReferenceSystem();
+            String srs = CRS.toSRS(crs);
+            if (!("EPSG:5187".equals(srs) || "Korea_2000_Korea_East_Belt_2010".equals(srs))) {
+                //    crs to 5187 logic
+            }
+            builder.setCRS(crs);
+
+            for (AttributeDescriptor attribute : schema.getAttributeDescriptors()) {
+                if (attribute instanceof GeometryDescriptor) {
+                    GeometryDescriptor geomDesc = (GeometryDescriptor) attribute;
+                    builder.add(geomDesc.getLocalName(), geomDesc.getType().getBinding());
+                } else {
+                    builder.add(attribute.getName().getLocalPart(), attribute.getType().getBinding());
+                }
+            }
+
+            SimpleFeatureType newSchema = builder.buildFeatureType();
+            dataStore.createSchema(newSchema);
+
+            SimpleFeatureStore featureStore = (SimpleFeatureStore) dataStore.getFeatureSource(layerId);
+            featureStore.setTransaction(transaction);
+            featureStore.addFeatures(fileDataStore.getFeatureSource().getFeatures());
+
+            transaction.commit();
+            return "SUCCESS";
+        } catch (Exception e) {
+            transaction.rollback();
+            return e.getMessage() + "FAIL error";
+        } finally {
+            transaction.close();
+        }
+    }
+
+
 
     // 디렉토리 내 파일 및 하위 디렉토리 삭제
     private void deleteTemp(Path tempDir) throws IOException {

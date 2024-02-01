@@ -30,10 +30,11 @@
         <repository>
             <id>GeoSolutions</id>
             <url>https://maven.geo-solutions.it/</url>
-        </repository><repository>
-        <id>GeoSolutions2</id>
-        <url>https://repo.osgeo.org/repository/geotools-releases/</url>
-    </repository>
+        </repository>
+        <repository>
+            <id>GeoSolutions2</id>
+            <url>https://repo.osgeo.org/repository/geotools-releases/</url>
+         </repository>
         <repository>
             <id>mvn2</id>
             <url>https://repo1.maven.org/maven2/</url>
@@ -179,6 +180,7 @@
             <systemPath>${basedir}/src/main/webapp/WEB-INF/lib/ojdbc-14.jar</systemPath>
         </dependency>
         -->
+
         <!-- psql ksh -->
 		 <dependency>
 		    <groupId>org.postgresql</groupId>
@@ -203,16 +205,28 @@
 			<version>${jackson.version}</version>
 		</dependency>
 
-		<!-- poi for Excel -->
-		<dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi</artifactId>
-            <version>4.1.2</version>
+        <!-- 파일 처리를 위해선 이거랑, dispatch 에 추가해줘야함-->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>${commons-io.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi-ooxml</artifactId>
-            <version>4.1.2</version>
+            <groupId>commons-fileupload</groupId>
+            <artifactId>commons-fileupload</artifactId>
+            <version>${commons-fileupload.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>1.21</version>
+        </dependency>
+
+        <!-- 쿼리 로그 -->
+        <dependency>
+            <groupId>org.bgee.log4jdbc-log4j2</groupId>
+            <artifactId>log4jdbc-log4j2-jdbc4</artifactId>
+            <version>1.16</version>
         </dependency>
 
         <!--geotools setting-->
@@ -241,11 +255,6 @@
             <artifactId>gt-epsg-hsql</artifactId>
             <version>${geotools.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.geotools</groupId>
-            <artifactId>gt-referencing</artifactId>
-            <version>${geotools.version}</version>
-        </dependency>
 
         <!-- geoserver -->
         <dependency>
@@ -264,24 +273,17 @@
             </exclusions>
         </dependency>
 
-        <!-- 파일 처리를 위해선 이거랑, dispatch 에 추가해줘야함-->
+        <!-- poi for Excel -->
         <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>${commons-io.version}</version>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi</artifactId>
+            <version>4.1.2</version>
         </dependency>
         <dependency>
-            <groupId>commons-fileupload</groupId>
-            <artifactId>commons-fileupload</artifactId>
-            <version>${commons-fileupload.version}</version>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>4.1.2</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
-            <version>1.21</version>
-        </dependency>
-        <!-- file -->
-
 	</dependencies>
 
 	<build>

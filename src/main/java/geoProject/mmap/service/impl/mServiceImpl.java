@@ -2,7 +2,11 @@ package geoProject.mmap.service.impl;
 
 import egovframework.rte.fdl.cmmn.EgovAbstractServiceImpl;
 import org.geotools.data.*;
+import org.geotools.data.collection.ListFeatureCollection;
+import org.geotools.data.simple.SimpleFeatureCollection;
+import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureStore;
+import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.referencing.CRS;
 import org.opengis.feature.simple.SimpleFeature;
@@ -40,6 +44,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
         String ctResult;
         Path tempDir = null;
         try {
+            // 유저이름까지 겹쳐서 중복없게 수정바람
             tempDir = Files.createTempDirectory("shp-upload");
             unzip(zipFile.getInputStream(), tempDir);
             String shpFileName = Arrays.stream(tempDir.toFile().list())
@@ -87,6 +92,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 geomType = "error create datastore";
             }
         } catch (Exception e) {
+            e.getMessage();
             e.printStackTrace();
         }
 
@@ -112,9 +118,10 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 // 스키마에서 가져온 css 동작 여부 확인
                 // 예외처리로 기본 5187 제공 코드 작성
                 CoordinateReferenceSystem crs = schema.getCoordinateReferenceSystem();
-                System.out.println("Coordinate Reference System: " + crs);
-                crs = CRS.decode("EPSG:5187");
-                System.out.println("espg -> " + crs);
+                String srs = CRS.toSRS(crs);
+                if (!("EPSG:5187".equals(srs) || "Korea_2000_Korea_East_Belt_2010".equals(srs))) {
+                //    crs to 5187 logic
+                }
                 builder.setCRS(crs);
 
                 // builder.add("geometry", Polygon.class);
@@ -136,6 +143,27 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 SimpleFeatureStore featureStore = (SimpleFeatureStore) dataStore.getFeatureSource(layerId);
                 featureStore.setTransaction(transaction);
 
+/*    // start
+                // SHP 파일의 Feature를 새로 생성한 테이블에 추가
+                SimpleFeatureCollection features = fileDataStore.getFeatureSource().getFeatures();
+
+                // ListFeatureCollection 대신에 SimpleFeatureBuilder를 사용하여 List<SimpleFeature>를 생성
+                SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(newSchema);
+                List<SimpleFeature> featureList = new ArrayList<>();
+                try (SimpleFeatureIterator iterator = features.features()) {
+                    while (iterator.hasNext()) {
+                        SimpleFeature originalFeature = iterator.next();
+                        featureBuilder.init(originalFeature);
+                        featureList.add(featureBuilder.buildFeature(originalFeature.getID()));
+                    }
+                }
+
+                // List<SimpleFeature>를 사용하여 SimpleFeatureCollection을 생성
+                SimpleFeatureCollection collection = new ListFeatureCollection(newSchema, featureList);
+
+                // featureStore에 데이터 추가
+                featureStore.addFeatures(collection);
+    // end*/
                 // SHP 파일의 Feature를 새로 생성한 테이블에 추가
                 featureStore.addFeatures(fileDataStore.getFeatureSource().getFeatures());
 
