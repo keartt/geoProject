@@ -2,11 +2,9 @@ package geoProject.mmap.service.impl;
 
 import egovframework.rte.fdl.cmmn.EgovAbstractServiceImpl;
 import org.geotools.data.*;
-import org.geotools.data.collection.ListFeatureCollection;
+import org.geotools.data.shapefile.ShapefileDumper;
 import org.geotools.data.simple.SimpleFeatureCollection;
-import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureStore;
-import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.referencing.CRS;
 import org.opengis.feature.simple.SimpleFeature;
@@ -19,14 +17,17 @@ import org.springframework.web.multipart.MultipartFile;
 import geoProject.mmap.service.mService;
 
 import javax.annotation.Resource;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 import static geoProject.mmap.service.myUtil.*;
 
@@ -193,5 +194,73 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
     public int insertPublicDept(Map<String, Object> params) {
         return mDAO.insertPublicDept(params);
     }
+
+    @Override
+    public byte[] returnShpZip(String layerName) {
+        Map<String, Object> params = getPostgisInfo(globalProperties);
+        try {
+            DataStore dataStore = DataStoreFinder.getDataStore(params);
+            if (dataStore != null) {
+                // Shapefile 덤프 및 압축
+                return dumpAndZipShapefile(dataStore, layerName, "D:/scdtw/output.zip");
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return null;
+    }
+
+    private static byte[] dumpAndZipShapefile(DataStore dataStore, String inputTypeName, String zipFilePath) throws IOException {
+        // Create a temporary directory using Files.createTempDirectory
+        Path tempDir = Paths.get(zipFilePath).getParent();
+
+        // ShapefileDumper 설정
+        ShapefileDumper dumper = new ShapefileDumper(tempDir.toFile());
+        dumper.setCharset(Charset.forName("EUC-KR"));
+        int maxSize = 100 * 1024 * 1024;
+        dumper.setMaxDbfSize(maxSize);
+
+        // 데이터 덤프
+        SimpleFeatureCollection fc = (SimpleFeatureCollection) dataStore.getFeatureSource(inputTypeName).getFeatures();
+        dumper.dump(fc);
+
+        // Shapefile 디렉토리를 ZIP 파일로 압축
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+
+            for (File file : tempDir.toFile().listFiles()) {
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    ZipEntry zipEntry = new ZipEntry(file.getName());
+                    zos.putNextEntry(zipEntry);
+                    byte[] bytes = new byte[1024];
+                    int length;
+                    while ((length = fis.read(bytes)) >= 0) {
+                        zos.write(bytes, 0, length);
+                    }
+                    zos.closeEntry();
+                }
+            }
+        } finally {
+            deleteDirectory(tempDir.toFile());
+        }
+
+        return baos.toByteArray();
+    }
+
+    private static void deleteDirectory(File dir) {
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    deleteDirectory(file);
+                } else {
+                    file.delete();
+                }
+            }
+        }
+        dir.delete();
+    }
+
 
 }

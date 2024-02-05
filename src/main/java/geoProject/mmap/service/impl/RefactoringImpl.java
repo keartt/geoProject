@@ -167,4 +167,9 @@ public class RefactoringImpl extends EgovAbstractServiceImpl implements mService
     public int insertPublicDept(Map<String, Object> params) {
         return 0;
     }
+
+    @Override
+    public byte[] returnShpZip(String layerName) {
+        return new byte[0];
+    }
 }

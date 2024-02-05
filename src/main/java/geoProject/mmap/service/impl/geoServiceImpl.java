@@ -6,12 +6,18 @@ import it.geosolutions.geoserver.rest.GeoServerRESTReader;
 import it.geosolutions.geoserver.rest.encoder.GSLayerEncoder;
 import it.geosolutions.geoserver.rest.encoder.GSPostGISDatastoreEncoder;
 import it.geosolutions.geoserver.rest.encoder.feature.GSFeatureTypeEncoder;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.springframework.stereotype.Service;
 import geoProject.mmap.service.geoService;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.net.MalformedURLException;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Properties;
 
@@ -22,8 +28,6 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
     private GeoServerRESTReader reader;
     private GeoServerRESTPublisher publisher;
 
-    private String workspace;
-
     @Resource(name = "globalProperties")
     Properties globalProperties;
 
@@ -32,26 +36,28 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
         String url = globalProperties.getProperty("2dmap.server.url");
         String user = "admin";
         String password = "geoserver";
-        workspace = "mmap";
         this.reader = new GeoServerRESTReader(url, user, password);
         this.publisher = new GeoServerRESTPublisher(url, user, password);
-//        this.publisher.createWorkspace(workspace);
     }
 
+    @Override
     public GeoServerRESTReader getReader(){
         return reader;
     }
 
+    @Override
     public GeoServerRESTPublisher getPublisher() {
         return publisher;
     }
 
-    public String getWorkSpace(){
-        return workspace;
-    }
-
+    /**
+     * 유저 아이디 저장소 확인 & 생성
+     * @param userId
+     * @param workspace
+     * @return
+     */
     @Override
-    public boolean createDataStrore(String userId) {
+    public boolean createDataStrore(String userId, String workspace) {
         GSPostGISDatastoreEncoder datastoreEncoder = new GSPostGISDatastoreEncoder();
         datastoreEncoder.setName(userId);
         Map<String, Object> PostgisInfo = getPostgisInfo(globalProperties);
@@ -67,7 +73,15 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
         return getPublisher().createPostGISDatastore(workspace, datastoreEncoder);
     }
 
-    public boolean publishLayer(String userId, String layerId) {
+    /**
+     * 레이어 발행
+     * @param userId
+     * @param workspace
+     * @param layerId
+     * @return
+     */
+    @Override
+    public boolean publishLayer(String userId, String workspace, String layerId) {
         // 피처 타입 설정
         GSFeatureTypeEncoder featureTypeEncoder = new GSFeatureTypeEncoder();
         featureTypeEncoder.setName(layerId);
@@ -79,7 +93,36 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
 //        layerEncoder.setDefaultStyle("your_default_style");
 
         return getPublisher().publishDBLayer(workspace, userId, featureTypeEncoder, layerEncoder);
+    }
 
+    /**
+     * 레이어 미리보기 이미지 to base64
+     */
+    @Override
+    public String getLayerPreviewImg(String workspace, String layerName) {
+        String geoserverBaseUrl = globalProperties.getProperty("2dmap.server.url");
+        String previewUrl = geoserverBaseUrl + "/wms/reflect?layers=" + workspace + ":" + layerName + "&format=image/png";
+        HttpClient httpClient = HttpClients.createDefault();
+        String base64Image = null;
+        try {
+            HttpGet getRequest = new HttpGet(previewUrl);
+            HttpResponse response = httpClient.execute(getRequest);
+
+            if (response.getStatusLine().getStatusCode() == 200) {
+                byte[] pngImage = EntityUtils.toByteArray(response.getEntity());
+                base64Image = Base64.getEncoder().encodeToString(pngImage);
+
+            } else {
+                System.err.println("Failed to obtain layer preview. HTTP Error Code: " + response.getStatusLine().getStatusCode());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            // Close the HttpClient
+            httpClient.getConnectionManager().shutdown();
+        }
+        return base64Image;
     }
 
 }
+

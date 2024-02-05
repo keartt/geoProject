@@ -1,14 +1,34 @@
 package geoProject.mmap.web;
 
 import egovframework.rte.fdl.idgnr.EgovIdGnrService;
+import it.geosolutions.geoserver.rest.decoder.RESTFeatureType;
+import it.geosolutions.geoserver.rest.decoder.RESTLayer;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+import org.geotools.data.DataStore;
+import org.geotools.data.DataStoreFinder;
+import org.geotools.data.FeatureSource;
+import org.geotools.data.postgis.PostgisNGJNDIDataStoreFactory;
+import org.geotools.data.shapefile.ShapefileDumper;
+import org.geotools.data.simple.SimpleFeatureCollection;
+import org.opengis.feature.simple.SimpleFeature;
+import org.opengis.feature.simple.SimpleFeatureType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Description;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 import geoProject.file.service.FileService;
@@ -19,10 +39,20 @@ import geoProject.mmap.service.mService;
 import geoProject.util.EgovFileMngUtil;
 
 import javax.annotation.Resource;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Controller
 public class mController {
@@ -45,23 +75,83 @@ public class mController {
     private EgovFileMngUtil egovFileMngUtil;
     private static final Logger LOGGER = LoggerFactory.getLogger(mController.class);
 
-    @RequestMapping("/test2.do")
-    public String test2(Model model, MultipartHttpServletRequest multiRequest){
-        String userId = multiRequest.getParameter("id");
-        boolean isSave = Boolean.parseBoolean(multiRequest.getParameter("isSave"));
-        System.out.println(userId);
-        System.out.println(isSave);
-        String test = multiRequest.getParameter("test");
-        if(test != null){
-            System.out.println(test);
-        }
+    @Resource(name = "globalProperties")
+    Properties globalProperties;
+
+
+    @RequestMapping("/testP.do")
+    public String getLayerPreview(Model model, @RequestParam String layerName, @RequestParam String workspace) {
+        String base64Image = geoService.getLayerPreviewImg(workspace, layerName);
+        model.addAttribute("img64", base64Image);
         return "jsonView";
+    }
+
+    @RequestMapping("/testD.do")
+    public ResponseEntity<byte[]> downloadShpZip(@RequestParam String layerName) {
+
+        // Database connection parameters
+        Map<String, Object> params = new HashMap<>();
+        params.put(PostgisNGJNDIDataStoreFactory.DBTYPE.key, "postgis");
+        params.put(PostgisNGJNDIDataStoreFactory.HOST.key, "localhost");
+        params.put(PostgisNGJNDIDataStoreFactory.PORT.key, 5432);
+        params.put(PostgisNGJNDIDataStoreFactory.SCHEMA.key, "public");
+        params.put(PostgisNGJNDIDataStoreFactory.DATABASE.key, "postgis");
+        params.put(PostgisNGJNDIDataStoreFactory.USER.key, "postgres");
+        params.put(PostgisNGJNDIDataStoreFactory.PASSWD.key, "1234");
+
+        try {
+            // Getting DataStore
+            DataStore dataStore = DataStoreFinder.getDataStore(params);
+
+            // Define the table to download
+            FeatureSource<SimpleFeatureType, SimpleFeature> source = dataStore.getFeatureSource(layerName);
+
+            // ShapefileDumper 설정
+            ShapefileDumper dumper = new ShapefileDumper(new File("D:\\scdtw\\"));
+            dumper.setCharset(Charset.forName("EUC-KR"));
+            int maxSize = 100 * 1024 * 1024;
+            dumper.setMaxDbfSize(maxSize);
+
+            // 데이터 덤프
+            SimpleFeatureCollection fc = (SimpleFeatureCollection) source.getFeatures();
+            dumper.dump(fc);
+
+            // ZIP 파일로 압축
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+                for (File file : new File("D:\\scdtw\\").listFiles()) {
+                    try (FileInputStream fis = new FileInputStream(file)) {
+                        ZipEntry zipEntry = new ZipEntry(file.getName());
+                        zos.putNextEntry(zipEntry);
+                        byte[] bytes = new byte[1024];
+                        int length;
+                        while ((length = fis.read(bytes)) >= 0) {
+                            zos.write(bytes, 0, length);
+                        }
+                        zos.closeEntry();
+                    }
+                }
+            }
+
+            // HTTP 응답 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", "output.zip");
+
+            return new ResponseEntity<>(baos.toByteArray(), headers, HttpStatus.OK);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            // 예외 처리 로직 추가
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @RequestMapping("/testAll.do")
     public String testAll(Model model, MultipartHttpServletRequest multiRequest) throws Exception {
         Map<String, Object> params = extractParams(multiRequest);
         String layerId = idGen.getNextStringId();           model.addAttribute("layerId", layerId);                     //layerId 생성
+        String workspace = "mmap"; // multiRequest.getParameter("workspace")
 
         params.put("layerId", layerId);
         int result = mService.insertLayerInfo(params);      model.addAttribute("layer Table Create", result);           // layer 정보
@@ -76,17 +166,17 @@ public class mController {
             model.addAttribute("Shp File geomType", geomType[0]);    // 지옴타입 반환
             model.addAttribute("create Table by Shp", geomType[1]);    // 디비생성 성공여부
 
-            // 파일 저장
             String userId = multiRequest.getParameter("userId");
+            /*// 파일 저장
             Map<String, MultipartFile> files = multiRequest.getFileMap();
-            List<FileVO> fileList = egovFileMngUtil.parseFileInf(files, geoService.getWorkSpace(), layerId, userId);
-            fileDAO.insertFileUpload(fileList);
+            List<FileVO> fileList = egovFileMngUtil.parseFileInf(files, workspace, layerId, userId);
+            fileDAO.insertFileUpload(fileList);*/
 
             // 유저 아이디 저장소 확인 & 생성
-            if (geoService.getReader().getDatastore(geoService.getWorkSpace(), userId) != null) {
+            if (geoService.getReader().getDatastore(workspace, userId) != null) {
                 model.addAttribute("userNameStore", "EXIST-" + userId);
             } else {
-                if (geoService.createDataStrore(userId)) {
+                if (geoService.createDataStrore(userId, workspace)) {
                     model.addAttribute("createStore as username", "SUCCESS-" + userId);
                 } else {
                     model.addAttribute("createStore as username", "FAIL");
@@ -94,7 +184,7 @@ public class mController {
                 }
             }
             // 지오서버 레이어 발행
-            if (geoService.publishLayer(userId, layerId)) {
+            if (geoService.publishLayer(userId, layerId, workspace)) {
                 model.addAttribute("publishLayer by Table", "SUCCESS");
             } else {
                 model.addAttribute("publishLayer by Table", "FAIL");
@@ -158,7 +248,6 @@ public class mController {
             String layerId = multiRequest.getParameter("atchfileId");
             String userId = multiRequest.getParameter("userId");
 
-
         } catch (Exception e) {
             LOGGER.error(e.getMessage());
         }
@@ -168,12 +257,12 @@ public class mController {
 
     @Description("사용자명 지오서버 저장소 확인 및 없으면 PostGis 저장소 생성")
     @RequestMapping("/chkGeoStore.do")
-    public String chkGeoStore(@RequestParam(value = "userId", defaultValue = "1111") String userId, Model model) throws MalformedURLException, URISyntaxException {
-        if (geoService.getReader().getDatastore(geoService.getWorkSpace(), userId) != null) {
+    public String chkGeoStore(@RequestParam(value = "userId", defaultValue = "1111") String userId, @RequestParam(value = "workspace", defaultValue = "mmap") String workspace, Model model) throws MalformedURLException, URISyntaxException {
+        if (geoService.getReader().getDatastore(workspace, userId) != null) {
             model.addAttribute("store", "exist");
         } else {
             model.addAttribute("store", "nope");
-            if (geoService.createDataStrore(userId)) {
+            if (geoService.createDataStrore(userId, workspace)) {
                 model.addAttribute("createStore", "success");
             } else {
                 model.addAttribute("createStore", "fail");
@@ -184,10 +273,10 @@ public class mController {
 
     @Description("사용자 저장소에 PostGis 테이블에서 가져온 레이어 발행")
     @RequestMapping("/publishLayer.do")
-    public String pbLayer(@RequestParam("userId") String userId, @RequestParam("layerId") String layerId, Model model) {
+    public String pbLayer(@RequestParam("userId") String userId, @RequestParam("layerId") String layerId, @RequestParam(value = "workspace", defaultValue = "mmap") String workspace, Model model) {
         // 레이어아이디로 > posgis 디비 만들어진 다음에
         // 사용자명으로 geoserver 저장소 만들어진 다음에
-        if (geoService.publishLayer(userId, layerId)) {
+        if (geoService.publishLayer(userId, workspace, layerId)) {
             model.addAttribute("publishLayer", "success");
         } else {
             model.addAttribute("publishLayer", "fail");
