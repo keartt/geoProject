@@ -39,20 +39,20 @@ import geoProject.mmap.service.mService;
 import geoProject.util.EgovFileMngUtil;
 
 import javax.annotation.Resource;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
+import static geoProject.mmap.service.myUtil.getPostgisInfo;
 
 @Controller
 public class mController {
@@ -98,7 +98,7 @@ public class mController {
         params.put(PostgisNGJNDIDataStoreFactory.DATABASE.key, "postgis");
         params.put(PostgisNGJNDIDataStoreFactory.USER.key, "postgres");
         params.put(PostgisNGJNDIDataStoreFactory.PASSWD.key, "1234");
-
+//        Map<String, Object> params = getPostgisInfo(globalProperties);
         try {
             // Getting DataStore
             DataStore dataStore = DataStoreFinder.getDataStore(params);
@@ -106,8 +106,12 @@ public class mController {
             // Define the table to download
             FeatureSource<SimpleFeatureType, SimpleFeature> source = dataStore.getFeatureSource(layerName);
 
+            // Create directory if it doesn't exist
+            Path directoryPath = Paths.get("D:\\scdtw\\" + layerName);
+            Files.createDirectories(directoryPath);
+
             // ShapefileDumper 설정
-            ShapefileDumper dumper = new ShapefileDumper(new File("D:\\scdtw\\"));
+            ShapefileDumper dumper = new ShapefileDumper(directoryPath.toFile());
             dumper.setCharset(Charset.forName("EUC-KR"));
             int maxSize = 100 * 1024 * 1024;
             dumper.setMaxDbfSize(maxSize);
@@ -117,28 +121,32 @@ public class mController {
             dumper.dump(fc);
 
             // ZIP 파일로 압축
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-                for (File file : new File("D:\\scdtw\\").listFiles()) {
-                    try (FileInputStream fis = new FileInputStream(file)) {
-                        ZipEntry zipEntry = new ZipEntry(file.getName());
-                        zos.putNextEntry(zipEntry);
-                        byte[] bytes = new byte[1024];
-                        int length;
-                        while ((length = fis.read(bytes)) >= 0) {
-                            zos.write(bytes, 0, length);
-                        }
-                        zos.closeEntry();
-                    }
-                }
+            Path zipFilePath = Paths.get("D:\\scdtw\\" + layerName + ".zip");
+            try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFilePath.toFile()))) {
+                Files.walk(directoryPath)
+                        .filter(Files::isRegularFile)
+                        .forEach(file -> {
+                            try (FileInputStream fis = new FileInputStream(file.toFile())) {
+                                ZipEntry zipEntry = new ZipEntry(directoryPath.relativize(file).toString());
+                                zos.putNextEntry(zipEntry);
+                                byte[] bytes = new byte[1024];
+                                int length;
+                                while ((length = fis.read(bytes)) >= 0) {
+                                    zos.write(bytes, 0, length);
+                                }
+                                zos.closeEntry();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        });
             }
 
             // HTTP 응답 헤더 설정
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-            headers.setContentDispositionFormData("attachment", "output.zip");
+            headers.setContentDispositionFormData("attachment", layerName + "_output.zip");
 
-            return new ResponseEntity<>(baos.toByteArray(), headers, HttpStatus.OK);
+            return new ResponseEntity<>(Files.readAllBytes(zipFilePath), headers, HttpStatus.OK);
 
         } catch (IOException e) {
             e.printStackTrace();
