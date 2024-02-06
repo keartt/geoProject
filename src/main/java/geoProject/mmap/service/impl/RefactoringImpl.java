@@ -13,6 +13,7 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -169,7 +170,6 @@ public class RefactoringImpl extends EgovAbstractServiceImpl implements mService
     }
 
     @Override
-    public byte[] returnShpZip(String layerName) {
-        return new byte[0];
+    public void returnShpZip(String layerName, HttpServletResponse response) {
     }
 }

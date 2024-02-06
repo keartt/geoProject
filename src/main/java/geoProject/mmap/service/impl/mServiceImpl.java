@@ -1,7 +1,9 @@
 package geoProject.mmap.service.impl;
 
 import egovframework.rte.fdl.cmmn.EgovAbstractServiceImpl;
+import geoProject.mmap.service.mService;
 import org.geotools.data.*;
+import org.geotools.data.shapefile.ShapefileDataStore;
 import org.geotools.data.shapefile.ShapefileDumper;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureStore;
@@ -11,21 +13,21 @@ import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.feature.type.GeometryDescriptor;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import geoProject.mmap.service.mService;
 
 import javax.annotation.Resource;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
+import javax.servlet.http.HttpServletResponse;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Properties;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -41,8 +43,9 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
 
     @Override
     public String[] getGeomType(MultipartFile zipFile, String layerId) throws IOException {
-        String geomType;
-        String ctResult;
+        String geomType = "no .shp file";
+        String ctResult= geomType;
+        String hasPrj = null;
         Path tempDir = null;
         try {
             // 유저이름까지 겹쳐서 중복없게 수정바람
@@ -52,22 +55,20 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                     .filter(fileName -> fileName.toLowerCase().endsWith(".shp"))
                     .findFirst()
                     .orElse(null);
-            geomType = "no .shp file";
-            ctResult = geomType;
             if (shpFileName != null) {
                 Path shpFilePath = tempDir.resolve(shpFileName);
+
+                boolean prjExists = Files.exists(shpFilePath.resolveSibling(shpFileName.replace(".shp", ".prj")));
+                if(prjExists) {
+                    hasPrj = "EXIST";
+                }
                 geomType = getShapefileGeomType(shpFilePath);
                 ctResult = createTableByShp(shpFilePath, layerId);
             }
         } finally {
-            // 디렉토리 내 파일 및 하위 디렉토리 삭제
-            Files.walk(tempDir)
-                    .sorted(Comparator.reverseOrder())
-                    .map(Path::toFile)
-                    .forEach(File::delete);
-            Files.deleteIfExists(tempDir);
+            delDir(tempDir);
         }
-        return new String[]{geomType, ctResult};
+        return new String[]{geomType, ctResult, hasPrj};
     }
 
     @Override
@@ -111,27 +112,28 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
 
             DataStore dataStore = DataStoreFinder.getDataStore(params);
             if (dataStore != null) {
-                FileDataStore fileDataStore = FileDataStoreFinder.getDataStore(shpFilePath.toFile());
+                ShapefileDataStore fileDataStore = new ShapefileDataStore(shpFilePath.toFile().toURI().toURL());
+                fileDataStore.setCharset(Charset.forName("euc-kr"));
+
                 SimpleFeatureType schema = fileDataStore.getSchema();
 
                 SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
                 builder.setName(layerId);
-                // 스키마에서 가져온 css 동작 여부 확인
-                // 예외처리로 기본 5187 제공 코드 작성
-                CoordinateReferenceSystem crs = schema.getCoordinateReferenceSystem();
-                String srs = CRS.toSRS(crs);
-                if (!("EPSG:5187".equals(srs) || "Korea_2000_Korea_East_Belt_2010".equals(srs))) {
-                //    crs to 5187 logic
-                }
-                builder.setCRS(crs);
+                builder.setCRS(CRS.decode("EPSG:5187"));
 
-                // builder.add("geometry", Polygon.class);
                 for (AttributeDescriptor attribute : schema.getAttributeDescriptors()) {
                     if (attribute instanceof GeometryDescriptor) {
                         GeometryDescriptor geomDesc = (GeometryDescriptor) attribute;
                         builder.add(geomDesc.getLocalName(), geomDesc.getType().getBinding());
                     } else {
-                        builder.add(attribute.getName().getLocalPart(), attribute.getType().getBinding());
+                        // 속성 추가 예제
+                        String attributeName = attribute.getName().getLocalPart();
+                        byte[] encodedValue = attributeName.getBytes(Charset.forName("EUC-KR"));
+                        String key = new String(encodedValue, Charset.forName("EUC-KR"));
+
+                        Class<?> attributeType = attribute.getType().getBinding();
+
+                        builder.add(key, attributeType);
                     }
                 }
 
@@ -144,27 +146,6 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 SimpleFeatureStore featureStore = (SimpleFeatureStore) dataStore.getFeatureSource(layerId);
                 featureStore.setTransaction(transaction);
 
-/*    // start
-                // SHP 파일의 Feature를 새로 생성한 테이블에 추가
-                SimpleFeatureCollection features = fileDataStore.getFeatureSource().getFeatures();
-
-                // ListFeatureCollection 대신에 SimpleFeatureBuilder를 사용하여 List<SimpleFeature>를 생성
-                SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(newSchema);
-                List<SimpleFeature> featureList = new ArrayList<>();
-                try (SimpleFeatureIterator iterator = features.features()) {
-                    while (iterator.hasNext()) {
-                        SimpleFeature originalFeature = iterator.next();
-                        featureBuilder.init(originalFeature);
-                        featureList.add(featureBuilder.buildFeature(originalFeature.getID()));
-                    }
-                }
-
-                // List<SimpleFeature>를 사용하여 SimpleFeatureCollection을 생성
-                SimpleFeatureCollection collection = new ListFeatureCollection(newSchema, featureList);
-
-                // featureStore에 데이터 추가
-                featureStore.addFeatures(collection);
-    // end*/
                 // SHP 파일의 Feature를 새로 생성한 테이블에 추가
                 featureStore.addFeatures(fileDataStore.getFeatureSource().getFeatures());
 
@@ -172,7 +153,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 transaction.commit();
                 ctResult = "SUCCESS";
             } else {
-                ctResult = "dataStore is Nul Fail";
+                ctResult = "dataStore is Null Fail";
             }
         } catch (Exception e) {
             ctResult = e.getMessage();
@@ -196,71 +177,74 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
     }
 
     @Override
-    public byte[] returnShpZip(String layerName) {
+    public void returnShpZip(String layerName, HttpServletResponse response) {
+
+        // Database connection parameters
         Map<String, Object> params = getPostgisInfo(globalProperties);
         try {
+            // Getting DataStore
             DataStore dataStore = DataStoreFinder.getDataStore(params);
-            if (dataStore != null) {
-                // Shapefile 덤프 및 압축
-                return dumpAndZipShapefile(dataStore, layerName, "D:/scdtw/output.zip");
+
+            // Define the table to download
+            FeatureSource<SimpleFeatureType, SimpleFeature> source = dataStore.getFeatureSource(layerName);
+
+            Path tempDir = Files.createTempDirectory("shp-download");
+            Files.createDirectories(tempDir);
+
+            // ShapefileDumper 설정
+            ShapefileDumper dumper = new ShapefileDumper(tempDir.toFile());
+            dumper.setCharset(Charset.forName("EUC-KR"));
+            int maxSize = 100 * 1024 * 1024;
+            dumper.setMaxDbfSize(maxSize);
+
+            // 데이터 덤프
+            SimpleFeatureCollection fc = (SimpleFeatureCollection) source.getFeatures();
+            dumper.dump(fc);
+
+            // ZIP 파일로 압축
+            Path zipFilePath = tempDir.resolve(layerName + "_output.zip");
+            try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFilePath.toFile()))) {
+                Files.walk(tempDir)
+                        .filter(Files::isRegularFile)
+                        .filter(path -> !Files.isDirectory(path) && !path.equals(zipFilePath)) // 무한루프방지
+                        .forEach(file -> {
+                            try (FileInputStream fis = new FileInputStream(file.toFile())) {
+                                ZipEntry zipEntry = new ZipEntry(file.toFile().getName());
+                                zos.putNextEntry(zipEntry);
+                                byte[] bytes = new byte[1024];
+                                int length;
+                                while ((length = fis.read(bytes)) >= 0) {
+                                    zos.write(bytes, 0, length);
+                                }
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        });
             }
+
+            // HTTP 응답 헤더 설정
+            response.setContentType("application/zip");
+            response.setHeader("Content-Disposition", "attachment; filename=" + layerName + "_output.zip");
+
+            // 파일 내용을 HttpServletResponse로 출력
+            try (OutputStream os = response.getOutputStream()) {
+                Files.copy(zipFilePath, os);
+                os.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+                // 예외 처리 로직 추가
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            }finally {
+                delDir(tempDir);
+            }
+
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            e.printStackTrace();
+            // 예외 처리 로직 추가
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
-
-        return null;
     }
 
-    private static byte[] dumpAndZipShapefile(DataStore dataStore, String inputTypeName, String zipFilePath) throws IOException {
-        // Create a temporary directory using Files.createTempDirectory
-        Path tempDir = Paths.get(zipFilePath).getParent();
-
-        // ShapefileDumper 설정
-        ShapefileDumper dumper = new ShapefileDumper(tempDir.toFile());
-        dumper.setCharset(Charset.forName("EUC-KR"));
-        int maxSize = 100 * 1024 * 1024;
-        dumper.setMaxDbfSize(maxSize);
-
-        // 데이터 덤프
-        SimpleFeatureCollection fc = (SimpleFeatureCollection) dataStore.getFeatureSource(inputTypeName).getFeatures();
-        dumper.dump(fc);
-
-        // Shapefile 디렉토리를 ZIP 파일로 압축
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-
-            for (File file : tempDir.toFile().listFiles()) {
-                try (FileInputStream fis = new FileInputStream(file)) {
-                    ZipEntry zipEntry = new ZipEntry(file.getName());
-                    zos.putNextEntry(zipEntry);
-                    byte[] bytes = new byte[1024];
-                    int length;
-                    while ((length = fis.read(bytes)) >= 0) {
-                        zos.write(bytes, 0, length);
-                    }
-                    zos.closeEntry();
-                }
-            }
-        } finally {
-            deleteDirectory(tempDir.toFile());
-        }
-
-        return baos.toByteArray();
-    }
-
-    private static void deleteDirectory(File dir) {
-        File[] files = dir.listFiles();
-        if (files != null) {
-            for (File file : files) {
-                if (file.isDirectory()) {
-                    deleteDirectory(file);
-                } else {
-                    file.delete();
-                }
-            }
-        }
-        dir.delete();
-    }
 
 
 }

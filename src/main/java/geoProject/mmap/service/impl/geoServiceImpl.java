@@ -50,12 +50,7 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
         return publisher;
     }
 
-    /**
-     * 유저 아이디 저장소 확인 & 생성
-     * @param userId
-     * @param workspace
-     * @return
-     */
+    // 유저 아이디 저장소 확인 및 생성
     @Override
     public boolean createDataStrore(String userId, String workspace) {
         GSPostGISDatastoreEncoder datastoreEncoder = new GSPostGISDatastoreEncoder();
@@ -73,15 +68,9 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
         return getPublisher().createPostGISDatastore(workspace, datastoreEncoder);
     }
 
-    /**
-     * 레이어 발행
-     * @param userId
-     * @param workspace
-     * @param layerId
-     * @return
-     */
+    // db -> geoserver layer publish
     @Override
-    public boolean publishLayer(String userId, String workspace, String layerId) {
+    public boolean publishLayer(String userId, String workspace, String layerId, String styleName) {
         // 피처 타입 설정
         GSFeatureTypeEncoder featureTypeEncoder = new GSFeatureTypeEncoder();
         featureTypeEncoder.setName(layerId);
@@ -90,14 +79,12 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
 
         // 레이어 발행 시 기본 스타일 설정 가능
         GSLayerEncoder layerEncoder = new GSLayerEncoder();
-//        layerEncoder.setDefaultStyle("your_default_style");
+        layerEncoder.setDefaultStyle(styleName);
 
         return getPublisher().publishDBLayer(workspace, userId, featureTypeEncoder, layerEncoder);
     }
 
-    /**
-     * 레이어 미리보기 이미지 to base64
-     */
+    // layer preview png to base 64 string
     @Override
     public String getLayerPreviewImg(String workspace, String layerName) {
         String geoserverBaseUrl = globalProperties.getProperty("2dmap.server.url");

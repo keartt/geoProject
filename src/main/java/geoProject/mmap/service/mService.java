@@ -2,6 +2,7 @@ package geoProject.mmap.service;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
@@ -17,5 +18,5 @@ public interface mService {
 
     int insertPublicDept(Map<String, Object> params);
 
-    byte[] returnShpZip(String layerName);
+    void returnShpZip(String layerName, HttpServletResponse response);
 }

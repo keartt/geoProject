@@ -12,7 +12,7 @@ public interface geoService {
 
     boolean createDataStrore(String userId, String workspace);
 
-    public boolean publishLayer(String userId, String workspace, String layerId);
+    public boolean publishLayer(String userId, String workspace, String layerId, String styleName);
 
     public String getLayerPreviewImg(String workspace, String layerName);
 
