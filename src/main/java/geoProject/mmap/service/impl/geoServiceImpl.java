@@ -58,6 +58,8 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
         Map<String, Object> PostgisInfo = getPostgisInfo(globalProperties);
 
         datastoreEncoder.setHost((String) PostgisInfo.get("host"));
+        // when use docker geoserver
+        datastoreEncoder.setHost("host.docker.internal");
         datastoreEncoder.setPort((Integer) PostgisInfo.get("port"));
         datastoreEncoder.setDatabase((String) PostgisInfo.get("database"));
         datastoreEncoder.setSchema((String) PostgisInfo.get("schema"));

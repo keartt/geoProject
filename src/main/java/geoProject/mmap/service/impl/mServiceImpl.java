@@ -74,9 +74,9 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
     @Override
     public String getShapefileGeomType(Path shpFilePath) {
         String geomType = null;
-
+        FileDataStore dataStore =null;
         try {
-            FileDataStore dataStore = FileDataStoreFinder.getDataStore(shpFilePath.toFile());
+            dataStore = FileDataStoreFinder.getDataStore(shpFilePath.toFile());
             if (dataStore != null) {
                 FeatureSource<SimpleFeatureType, SimpleFeature> featureSource = dataStore.getFeatureSource();
                 SimpleFeatureType schema = featureSource.getSchema();
@@ -96,6 +96,10 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
         } catch (Exception e) {
             e.getMessage();
             e.printStackTrace();
+        }finally {
+            if (dataStore != null) {
+                dataStore.dispose();
+            }
         }
 
         return geomType;
@@ -104,15 +108,16 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
     @Override
     public String createTableByShp(Path shpFilePath, String layerId) throws IOException {
         String ctResult = "fail"; // 초기값을 실패로 설정
+        DataStore dataStore = null;
+        ShapefileDataStore fileDataStore = null;
 
         DefaultTransaction transaction = new DefaultTransaction("createTableTransaction");
 
         try {
             Map<String, Object> params = getPostgisInfo(globalProperties);
-
-            DataStore dataStore = DataStoreFinder.getDataStore(params);
+            dataStore = DataStoreFinder.getDataStore(params);
             if (dataStore != null) {
-                ShapefileDataStore fileDataStore = new ShapefileDataStore(shpFilePath.toFile().toURI().toURL());
+                fileDataStore = new ShapefileDataStore(shpFilePath.toFile().toURI().toURL());
                 fileDataStore.setCharset(Charset.forName("euc-kr"));
 
                 SimpleFeatureType schema = fileDataStore.getSchema();
@@ -162,6 +167,12 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
             transaction.rollback();
         } finally {
             transaction.close();
+            if(dataStore != null){
+                dataStore.dispose();
+            }
+            if (fileDataStore != null) {
+                fileDataStore.dispose();
+            }
         }
         return ctResult;
     }
@@ -178,12 +189,12 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
 
     @Override
     public void returnShpZip(String layerName, HttpServletResponse response) {
-
+        DataStore dataStore = null;
         // Database connection parameters
         Map<String, Object> params = getPostgisInfo(globalProperties);
         try {
             // Getting DataStore
-            DataStore dataStore = DataStoreFinder.getDataStore(params);
+            dataStore = DataStoreFinder.getDataStore(params);
 
             // Define the table to download
             FeatureSource<SimpleFeatureType, SimpleFeature> source = dataStore.getFeatureSource(layerName);
@@ -236,6 +247,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             }finally {
                 delDir(tempDir);
+                dataStore.dispose();
             }
 
         } catch (IOException e) {

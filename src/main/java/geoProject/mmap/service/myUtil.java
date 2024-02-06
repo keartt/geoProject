@@ -32,10 +32,6 @@ public class myUtil {
 
         PostgisInfo.put("dbtype", "postgis");
         PostgisInfo.put("host", host);
-
-        // docker localhost
-//        PostgisInfo.put("host", "host.docker.internal");
-
         PostgisInfo.put("port", port);
         PostgisInfo.put("schema", "public");
         PostgisInfo.put("database", database);
