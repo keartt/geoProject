@@ -11,8 +11,8 @@
         <property name="password" value="${Globals.postgresql.password}"/>
     </bean>
 
-<!--    <jdbc:initialize-database data-source="dataSource">-->
-<!--        <jdbc:script location="classpath:egovframework/sql/create.sql"/>-->
-<!--    </jdbc:initialize-database>-->
+    <jdbc:initialize-database data-source="dataSource">
+        <jdbc:script location="classpath:egovframework/sql/create.sql"/>
+    </jdbc:initialize-database>
 
 </beans>

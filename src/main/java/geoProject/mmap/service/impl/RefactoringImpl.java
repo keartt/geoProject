@@ -133,8 +133,6 @@ public class RefactoringImpl extends EgovAbstractServiceImpl implements mService
         }
     }
 
-
-
     // 디렉토리 내 파일 및 하위 디렉토리 삭제
     private void deleteTemp(Path tempDir) throws IOException {
         Files.walk(tempDir)
@@ -171,5 +169,15 @@ public class RefactoringImpl extends EgovAbstractServiceImpl implements mService
 
     @Override
     public void returnShpZip(String layerName, HttpServletResponse response) {
+    }
+
+    @Override
+    public int insertBlob(Map<String, Object> params) {
+        return 0;
+    }
+
+    @Override
+    public byte[] getBlob(String layerName) {
+        return new byte[0];
     }
 }

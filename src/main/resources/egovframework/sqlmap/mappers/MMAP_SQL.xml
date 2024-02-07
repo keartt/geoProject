@@ -8,11 +8,21 @@
 	</insert>
 
 	<insert id="insertPublicDept" parameterType="Map">
-		INSERT INTO mmap_layer_pubdep (layer_id, dept_id)
-		VALUES
-		<foreach collection="deptId" item="dept" separator=",">
-			(#{layerId}, #{dept})
-		</foreach>
+		<if test="deptId != null">
+			INSERT INTO mmap_layer_pubdep (layer_id, dept_id)
+			VALUES
+			<foreach collection="deptId" item="dept" separator=",">
+				(#{layerId}, #{dept})
+			</foreach>
+		</if>
 	</insert>
+
+	<insert id="insertBlob" parameterType="Map">
+		INSERT into  blob_test (layerName, bdata) VALUES (#{layerName}, #{bdata})
+	</insert>
+
+	<select id="selectBlob" parameterType="string" resultType="Map">
+		SELECT bdata FROM blob_test WHERE layerName = #{value}
+	</select>
 
 </mapper>

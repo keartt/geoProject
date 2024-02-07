@@ -15,4 +15,13 @@ public class mDAO extends EgovAbstractMapper{
     public int insertPublicDept(Map<String, Object> params) {
         return (int)insert("mDAO.insertPublicDept", params);
     }
+
+    public int insertBlob(Map<String, Object> params) {
+        return (int)insert("mDAO.insertBlob", params);
+    }
+
+    public Map<String, Object> getBlob(String layerName){
+        return selectOne("mDAO.selectBlob", layerName);
+    }
+
 }

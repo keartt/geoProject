@@ -19,4 +19,8 @@ public interface mService {
     int insertPublicDept(Map<String, Object> params);
 
     void returnShpZip(String layerName, HttpServletResponse response);
+
+    int insertBlob(Map<String, Object> params);
+
+    byte[] getBlob(String layerName);
 }

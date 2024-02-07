@@ -79,9 +79,11 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
         featureTypeEncoder.setTitle(layerId);
         featureTypeEncoder.setNativeName(layerId);
 
-        // 레이어 발행 시 기본 스타일 설정 가능
         GSLayerEncoder layerEncoder = new GSLayerEncoder();
-        layerEncoder.setDefaultStyle(styleName);
+        // geoserver 기본 스타일명으로 지정
+        if(styleName != null){  // point 는 스타일 null
+            layerEncoder.setDefaultStyle(styleName);
+        }
 
         return getPublisher().publishDBLayer(workspace, userId, featureTypeEncoder, layerEncoder);
     }

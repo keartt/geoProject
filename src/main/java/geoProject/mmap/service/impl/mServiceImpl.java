@@ -6,13 +6,18 @@ import org.geotools.data.*;
 import org.geotools.data.shapefile.ShapefileDataStore;
 import org.geotools.data.shapefile.ShapefileDumper;
 import org.geotools.data.simple.SimpleFeatureCollection;
+import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureStore;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
+import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
+import org.locationtech.jts.geom.Geometry;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.feature.type.GeometryDescriptor;
+import org.opengis.referencing.crs.CoordinateReferenceSystem;
+import org.opengis.referencing.operation.MathTransform;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -44,7 +49,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
     @Override
     public String[] getGeomType(MultipartFile zipFile, String layerId) throws IOException {
         String geomType = "no .shp file";
-        String ctResult= geomType;
+        String ctResult = geomType;
         String hasPrj = null;
         Path tempDir = null;
         try {
@@ -59,7 +64,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 Path shpFilePath = tempDir.resolve(shpFileName);
 
                 boolean prjExists = Files.exists(shpFilePath.resolveSibling(shpFileName.replace(".shp", ".prj")));
-                if(prjExists) {
+                if (prjExists) {
                     hasPrj = "EXIST";
                 }
                 geomType = getShapefileGeomType(shpFilePath);
@@ -74,7 +79,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
     @Override
     public String getShapefileGeomType(Path shpFilePath) {
         String geomType = null;
-        FileDataStore dataStore =null;
+        FileDataStore dataStore = null;
         try {
             dataStore = FileDataStoreFinder.getDataStore(shpFilePath.toFile());
             if (dataStore != null) {
@@ -96,7 +101,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
         } catch (Exception e) {
             e.getMessage();
             e.printStackTrace();
-        }finally {
+        } finally {
             if (dataStore != null) {
                 dataStore.dispose();
             }
@@ -124,7 +129,28 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
 
                 SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
                 builder.setName(layerId);
+                
+                // 좌표계가 정의되어 있는데 그게 5187 아닐때만 변환실행
+                CoordinateReferenceSystem sourceCRS = schema.getCoordinateReferenceSystem();
+                String srs = CRS.toSRS(sourceCRS);
+                if ((sourceCRS != null) && (!srs.equals("Korea_2000_Korea_East_Belt_2010")) && (!srs.equals("EPSG:5187"))) {
+                    CoordinateReferenceSystem targetCRS = CRS.decode("EPSG:5187");
+                    MathTransform transform = CRS.findMathTransform(sourceCRS, targetCRS);
+
+                    SimpleFeatureIterator featureIterator = fileDataStore.getFeatureSource().getFeatures().features();
+                    while (featureIterator.hasNext()) {
+                        SimpleFeature feature = featureIterator.next();
+                        Geometry originalGeometry = (Geometry) feature.getDefaultGeometry();
+
+                        // 지오메트리를 5187 좌표계로 변환합니다.
+                        Geometry transformedGeometry = JTS.transform(originalGeometry, transform);
+                        // 변환된 지오메트리를 해당 feature에 설정합니다.
+                        feature.setDefaultGeometry(transformedGeometry);
+                    }
+                    featureIterator.close();
+                }
                 builder.setCRS(CRS.decode("EPSG:5187"));
+
 
                 for (AttributeDescriptor attribute : schema.getAttributeDescriptors()) {
                     if (attribute instanceof GeometryDescriptor) {
@@ -167,7 +193,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
             transaction.rollback();
         } finally {
             transaction.close();
-            if(dataStore != null){
+            if (dataStore != null) {
                 dataStore.dispose();
             }
             if (fileDataStore != null) {
@@ -245,7 +271,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 e.printStackTrace();
                 // 예외 처리 로직 추가
                 response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            }finally {
+            } finally {
                 delDir(tempDir);
                 dataStore.dispose();
             }
@@ -257,6 +283,15 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
         }
     }
 
+    @Override
+    public int insertBlob(Map<String, Object> params) {
+        return mDAO.insertBlob(params);
+    }
+
+    @Override
+    public byte[] getBlob(String layerName) {
+        return (byte[])mDAO.getBlob(layerName).get("bdata");
+    }
 
 
 }
