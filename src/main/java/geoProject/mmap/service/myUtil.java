@@ -2,9 +2,10 @@ package geoProject.mmap.service;
 
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -77,5 +78,25 @@ public class myUtil {
             params.put(paramName, paramValue);
         }
         return params;
+    }
+
+    //resize img 1/4
+    public static byte[] resizeImage(byte[] originalImage) throws IOException {
+        ByteArrayInputStream bis = new ByteArrayInputStream(originalImage);
+        BufferedImage bufferedImage = ImageIO.read(bis);
+
+        int newWidth = bufferedImage.getWidth() / 4;
+        int newHeight = bufferedImage.getHeight() / 4;
+        Image scaledImage = bufferedImage.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
+        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = resizedImage.createGraphics();
+        g2d.drawImage(scaledImage, 0, 0, null);
+        g2d.dispose();
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ImageIO.write(resizedImage, "png", bos);
+        byte[] compressedImage = bos.toByteArray();
+        bos.close();
+        return compressedImage;
     }
 }

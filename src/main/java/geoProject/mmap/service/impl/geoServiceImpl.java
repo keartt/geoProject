@@ -1,6 +1,7 @@
 package geoProject.mmap.service.impl;
 
 import egovframework.rte.fdl.cmmn.EgovAbstractServiceImpl;
+import geoProject.mmap.service.geoService;
 import it.geosolutions.geoserver.rest.GeoServerRESTPublisher;
 import it.geosolutions.geoserver.rest.GeoServerRESTReader;
 import it.geosolutions.geoserver.rest.encoder.GSLayerEncoder;
@@ -12,16 +13,16 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.springframework.stereotype.Service;
-import geoProject.mmap.service.geoService;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.net.MalformedURLException;
-import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import static geoProject.mmap.service.myUtil.*;
+import static geoProject.mmap.service.myUtil.getPostgisInfo;
+import static geoProject.mmap.service.myUtil.resizeImage;
 
 @Service("geoService")
 public class geoServiceImpl extends EgovAbstractServiceImpl implements geoService {
@@ -30,6 +31,9 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
 
     @Resource(name = "globalProperties")
     Properties globalProperties;
+
+    @Resource(name = "mDAO")
+    private mDAO mDAO;
 
     @PostConstruct
     private void initializeProperties() throws MalformedURLException {
@@ -54,11 +58,11 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
     @Override
     public boolean createDataStrore(String userId, String workspace) {
         GSPostGISDatastoreEncoder datastoreEncoder = new GSPostGISDatastoreEncoder();
-        datastoreEncoder.setName(userId);
-        Map<String, Object> PostgisInfo = getPostgisInfo(globalProperties);
 
+        Map<String, Object> PostgisInfo = getPostgisInfo(globalProperties);
+        datastoreEncoder.setName(userId);
         datastoreEncoder.setHost((String) PostgisInfo.get("host"));
-        // when use docker geoserver
+//        // when use docker geoserver
         datastoreEncoder.setHost("host.docker.internal");
         datastoreEncoder.setPort((Integer) PostgisInfo.get("port"));
         datastoreEncoder.setDatabase((String) PostgisInfo.get("database"));
@@ -90,19 +94,24 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
 
     // layer preview png to base 64 string
     @Override
-    public String getLayerPreviewImg(String workspace, String layerName) {
+    public String insertPreviewImg(String workspace, String layerName) {
         String geoserverBaseUrl = globalProperties.getProperty("2dmap.server.url");
         String previewUrl = geoserverBaseUrl + "/wms/reflect?layers=" + workspace + ":" + layerName + "&format=image/png";
         HttpClient httpClient = HttpClients.createDefault();
-        String base64Image = null;
+        String result = "FAIL";
         try {
             HttpGet getRequest = new HttpGet(previewUrl);
             HttpResponse response = httpClient.execute(getRequest);
 
             if (response.getStatusLine().getStatusCode() == 200) {
-                byte[] pngImage = EntityUtils.toByteArray(response.getEntity());
-                base64Image = Base64.getEncoder().encodeToString(pngImage);
-
+                byte[] oriImage = EntityUtils.toByteArray(response.getEntity());
+                Map<String, Object> params = new HashMap<>();
+                params.put("layerName", layerName);
+                byte[] compressImage = resizeImage(oriImage);
+                params.put("bdata", compressImage);
+                // preview image blob insert
+                mDAO.insertBlob(params);
+                result = "SUCCESS";
             } else {
                 System.err.println("Failed to obtain layer preview. HTTP Error Code: " + response.getStatusLine().getStatusCode());
             }
@@ -112,7 +121,7 @@ public class geoServiceImpl extends EgovAbstractServiceImpl implements geoServic
             // Close the HttpClient
             httpClient.getConnectionManager().shutdown();
         }
-        return base64Image;
+        return result;
     }
 
 }

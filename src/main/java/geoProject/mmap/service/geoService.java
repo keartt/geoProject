@@ -14,6 +14,6 @@ public interface geoService {
 
     public boolean publishLayer(String userId, String workspace, String layerId, String styleName);
 
-    public String getLayerPreviewImg(String workspace, String layerName);
+    public String insertPreviewImg(String workspace, String layerName);
 
     }

@@ -1,18 +1,14 @@
 package geoProject.mmap.web;
 
+import com.sun.org.apache.xpath.internal.operations.Mod;
 import egovframework.rte.fdl.idgnr.EgovIdGnrService;
 import geoProject.mmap.service.geoService;
 import geoProject.mmap.service.mService;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
+import org.geotools.referencing.CRS;
+import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Description;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,12 +18,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import javax.annotation.Resource;
-import javax.imageio.ImageIO;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,59 +40,6 @@ public class mController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(mController.class);
 
-    @RequestMapping("/blob.do")
-    public ResponseEntity<byte[]> getLayerPreviewImgBlob(@RequestParam String workspace, @RequestParam String layerName) {
-        String previewUrl = "http://localhost:8088/geoserver/wms/reflect?layers=" + workspace + ":" + layerName + "&format=image/png";
-        HttpClient httpClient = HttpClients.createDefault();
-        byte[] pngImage = null;
-        try {
-            HttpGet getRequest = new HttpGet(previewUrl);
-            HttpResponse response = httpClient.execute(getRequest);
-
-            if (response.getStatusLine().getStatusCode() == HttpStatus.OK.value()) {
-                pngImage = EntityUtils.toByteArray(response.getEntity());
-                Map<String, Object> params = new HashMap<>();
-                params.put("layerName", layerName);
-
-                byte[] compressImage = resizeImage(pngImage);
-                params.put("bdata", compressImage);
-                mService.insertBlob(params);
-            } else {
-                System.err.println("Failed to obtain layer preview. HTTP Error Code: " + response.getStatusLine().getStatusCode());
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        } finally {
-            // Close the HttpClient
-            httpClient.getConnectionManager().shutdown();
-        }
-
-        byte[] retrievedImage = mService.getBlob(layerName);
-
-        return ResponseEntity.ok(retrievedImage);
-    }
-
-    private byte[] resizeImage(byte[] originalImage) throws IOException {
-        ByteArrayInputStream bis = new ByteArrayInputStream(originalImage);
-        BufferedImage bufferedImage = ImageIO.read(bis);
-
-        int newWidth = bufferedImage.getWidth() / 4;
-        int newHeight = bufferedImage.getHeight() / 4;
-        Image scaledImage = bufferedImage.getScaledInstance(newWidth, newHeight, Image.SCALE_SMOOTH);
-        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2d = resizedImage.createGraphics();
-        g2d.drawImage(scaledImage, 0, 0, null);
-        g2d.dispose();
-
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ImageIO.write(resizedImage, "png", bos);
-        byte[] compressedImage = bos.toByteArray();
-        bos.close();
-        return compressedImage;
-    }
-
     @RequestMapping("/testAll.do")
     public String testAll(Model model, MultipartHttpServletRequest multiRequest) throws Exception {
         Map<String, Object> params = extractParams(multiRequest);
@@ -117,54 +56,134 @@ public class mController {
         int result = mService.insertLayerInfo(params);
         int result2 = mService.insertPublicDept(params);
 
-        logs.put("layerId:",layerId);                  //layerId 생성
-        logs.put("layerTableCreate",(result ==1));     // layer 정보
-        logs.put("DeptTableInsertCount:",result2);     // layer 공개범위
+        logs.put("layerId:", layerId);                  //layerId 생성
+        logs.put("layerTableCreate", (result == 1));     // layer 정보
+        logs.put("DeptTableInsertCount:", result2);     // layer 공개범위
 
         Iterator<String> fileNamesIterator = multiRequest.getFileNames();
         if (!fileNamesIterator.hasNext()) {
-            errors.put("FIlE",false);
+            errors.put("FIlE", false);
         } else {
             MultipartFile file = multiRequest.getFile(fileNamesIterator.next());
             String[] geomType = mService.getGeomType(file, layerId);
-            logs.put("geomType",geomType[0]);           // 지옴타입 반환
-            logs.put("createTablebyShp",geomType[1]);   // 디비생성 성공여부
-            if(geomType[0].equals("Point")){
+            logs.put("geomType", geomType[0]);           // 지옴타입 반환
+            logs.put("createTablebyShp", geomType[1]);   // 디비생성 성공여부
+            if (geomType[0].equals("Point")) {
                 styleName = null;
             }
-            logs.put("prjFile",geomType[2]);            // prj 여부*/
+            logs.put("prjFile", geomType[2]);            // prj 여부*/
 
             // 유저 아이디 저장소 확인 & 생성
             if (geoService.getReader().getDatastore(workspace, userId) == null) {
                 if (geoService.createDataStrore(userId, workspace)) {
-                    logs.put("createStore",userId);
+                    logs.put("createStore", userId);
                 } else {
-                    errors.put("GEO_STORE",false);
+                    errors.put("GEO_STORE", false);
                 }
             }
             // 지오서버 레이어 발행
             if (geoService.publishLayer(userId, workspace, layerId, styleName)) {
-                logs.put("publishLayer",layerId);
+                logs.put("publishLayer", layerId);
                 // 미리보기 이미지
 //                logs.put("img64:",geoService.getLayerPreviewImg(workspace, layerId));
             } else {
-                errors.put("GEO_LAYER_PUBLISH",false);
+                errors.put("GEO_LAYER_PUBLISH", false);
             }
         }
-        model.addAttribute("LOG", logs);
-        model.addAttribute("ERROR", errors);
+        model.addAttribute("logs", logs)
+                .addAttribute("errors", errors);
 
         return "jsonView";
-    }
+     }
 
 
-    @Description("사용자 레이어 파일 읽고 타입 반환")
+    @Description("레이어 파일 읽고 타입과 스타일 목록 반환")
     @RequestMapping("/readShpFile.do")
     public String readShpFile(@RequestParam("shpFile") MultipartFile shpFile, Model model) throws IOException {
         String layerId = "testDBnameLayerId";
         String[] geomType = mService.getGeomType(shpFile, layerId);
         model.addAttribute("geomType", geomType[0]);
-        model.addAttribute("ctResult", geomType[1]);
+        if (geomType[0] != null){
+            // 지옴 타입에 맞춰서 스타일 조회 후 반환 ㅇㄹㅇㄹㅇ ㅇ라어림ㅇ러 ㅇㄴㄹㅇ니ㅏㄹ
+
+            model.addAttribute("styleList", null);
+        }
+//        model.addAttribute("ctResult", geomType[1]);
+        return "jsonView";
+    }
+
+    @Description("shp 파일 업로드")
+    @RequestMapping("/uploadShpFile.do")
+    public String uploadShpFile(Model model, MultipartHttpServletRequest multiRequest) throws IOException {
+//        1. 파일 읽어서 shp 파일 테이블 생성 (userId + reg_dt)
+//        2. 유저 아이디 저장소 확인
+//        3. 지오서버 레이어 발행
+//        4. 지오서버 미리보기 이미지 반환 'img'
+//        5. 업무 타입에 따라 'param' select
+//            5-1. 행정지도일 경우  dept table 에 insert 하고 user_id + 현재시간 + 제목,내용
+//            5-2. 다른 테이블일 경우 user_id, reg_dt
+//        7. 레이어 테이블 생성
+//            isnert 레이어아이디 + 'param' + 'img' + user_id + 업무코드 + 스타일명
+//        8. 성공, 실패 각 내용들 map 으로 담아서
+
+        // 성공 실패 로그 담아서 출력
+        Map<String, Object> logs = new HashMap<>();
+        Map<String, Object> errors = new HashMap<>();
+
+        String userId = multiRequest.getParameter("user_id");
+        String workspace = multiRequest.getParameter("code");
+        String layerId = userId + multiRequest.getParameter("reg_dt");
+        String styleName = multiRequest.getParameter("sty_id");
+
+        Iterator<String> fileNamesIterator = multiRequest.getFileNames();
+        if (!fileNamesIterator.hasNext()) {
+            errors.put("FIlE", false);
+        } else {
+            MultipartFile file = multiRequest.getFile(fileNamesIterator.next());
+            String[] geomType = mService.getGeomType(file, layerId);
+            logs.put("createTablebyShp", geomType[1]);   // 디비생성 성공여부
+            if (geomType[0].equals("Point")) {
+                styleName = null;
+            }
+
+            // 유저 아이디 저장소 확인 & 생성
+            if (geoService.getReader().getDatastore(workspace, userId) == null) {
+                if (geoService.createDataStrore(userId, workspace)) {
+                    logs.put("createStore", userId);
+                } else {
+                    errors.put("GEO_STORE", false);
+                    return "jsonView";
+                }
+            }
+            // 지오서버 레이어 발행
+            if (!geoService.publishLayer(userId, workspace, layerId, styleName)) {
+                errors.put("GEO_LAYER_PUBLISH", false);
+            } else {
+                logs.put("publishLayer", layerId);
+                logs.put("previewImg", geoService.insertPreviewImg(workspace, layerId));
+                if (workspace.equals("mmap")) {
+                    Map<String, Object> params = extractParams(multiRequest);
+                    logs.put("DeptTableInsertCount:", mService.insertPublicDept(params));     // layer 공개범위
+                }
+                // scdtw_file_uld_lyr_mng 테이블 insert
+
+            }
+        }
+        model.addAttribute("logs", logs);
+        model.addAttribute("errors", errors);
+        return "jsonView";
+    }
+
+
+    @Description("레이어 미리보기 이미지 List")
+    @RequestMapping("/getLayerPreviewImgList.do")
+    public String getLayerPreviewImgList(Model model, @RequestBody Map<String, Object> data) {
+
+        // select 아이디, 블롭 from 레이어테이블 where 아이디 in
+        // <foreach item="item" index="index" collection="data" open="(" separator="," close=")">
+        // #{item} </foreach>
+
+        model.addAttribute("imgList", null);
         return "jsonView";
     }
 
@@ -173,6 +192,42 @@ public class mController {
     public void downloadShpZip(@RequestParam String layerName, HttpServletResponse response) {
         mService.returnShpZip(layerName, response);
     }
+
+//    // 레이어 미리보기 이미지 크기 줄인 후 blob 으로 저장 / base 64 로 리턴
+//    @RequestMapping("/blob.do")
+//    public String getLayerPreviewImgBlob(@RequestParam String workspace, @RequestParam String layerName, Model model) {
+//        String previewUrl = "http://localhost:8088/geoserver/wms/reflect?layers=" + workspace + ":" + layerName + "&format=image/png";
+//        HttpClient httpClient = HttpClients.createDefault();
+//        byte[] pngImage = null;
+//        try {
+//            HttpGet getRequest = new HttpGet(previewUrl);
+//            HttpResponse response = httpClient.execute(getRequest);
+//
+//            if (response.getStatusLine().getStatusCode() == HttpStatus.OK.value()) {
+//                pngImage = EntityUtils.toByteArray(response.getEntity());
+//                Map<String, Object> params = new HashMap<>();
+//                params.put("layerName", layerName);
+//
+//                byte[] compressImage = resizeImage(pngImage);
+//                params.put("bdata", compressImage);
+//                mService.insertBlob(params);
+//            } else {
+//                System.err.println("Failed to obtain layer preview. HTTP Error Code: " + response.getStatusLine().getStatusCode());
+//                return "Failed to obtain layer preview. HTTP Error Code: " + response.getStatusLine().getStatusCode();
+//            }
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//            return "Internal Server Error";
+//        } finally {
+//            // Close the HttpClient
+//            httpClient.getConnectionManager().shutdown();
+//        }
+//
+//        byte[] retrievedImage = mService.getBlob(layerName);
+//        model.addAttribute("img", retrievedImage);
+//
+//        return "jsonView";
+//    }
 
 //    /**
 //     * 사용자명 지오서버 저장소 확인 및 없으면 PostGis 저장소 생성

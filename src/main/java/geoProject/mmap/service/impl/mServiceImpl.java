@@ -3,11 +3,16 @@ package geoProject.mmap.service.impl;
 import egovframework.rte.fdl.cmmn.EgovAbstractServiceImpl;
 import geoProject.mmap.service.mService;
 import org.geotools.data.*;
+import org.geotools.data.collection.ListFeatureCollection;
 import org.geotools.data.shapefile.ShapefileDataStore;
+import org.geotools.data.shapefile.ShapefileDataStoreFactory;
 import org.geotools.data.shapefile.ShapefileDumper;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
+import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.simple.SimpleFeatureStore;
+import org.geotools.feature.DefaultFeatureCollection;
+import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
@@ -18,6 +23,7 @@ import org.opengis.feature.type.AttributeDescriptor;
 import org.opengis.feature.type.GeometryDescriptor;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.MathTransform;
+
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -30,9 +36,7 @@ import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -48,8 +52,8 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
 
     @Override
     public String[] getGeomType(MultipartFile zipFile, String layerId) throws IOException {
-        String geomType = "no .shp file";
-        String ctResult = geomType;
+        String geomType = null;
+        String ctResult = null;
         String hasPrj = null;
         Path tempDir = null;
         try {
@@ -112,6 +116,90 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
 
     @Override
     public String createTableByShp(Path shpFilePath, String layerId) throws IOException {
+        String ctResult = "fail";
+        DefaultTransaction transaction = new DefaultTransaction("createTableTransaction");
+        Map<String, Object> params = getPostgisInfo(globalProperties);
+        try {
+            DataStore dataStore = DataStoreFinder.getDataStore(params);
+            if (dataStore != null) {
+                ShapefileDataStore fileDataStore = new ShapefileDataStore(shpFilePath.toFile().toURI().toURL());
+                fileDataStore.setCharset(Charset.forName("euc-kr"));
+                SimpleFeatureSource featureSource = fileDataStore.getFeatureSource();
+                SimpleFeatureType schema = featureSource.getSchema();
+
+                // 스키마를 기반으로 새로운 SimpleFeatureType 생성
+                SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
+                builder.setName(layerId);
+                builder.setCRS(CRS.decode("EPSG:5187")); // 목표 좌표계 설정
+                // 기존 속성들을 새 스키마에 추가
+                for (AttributeDescriptor attribute : schema.getAttributeDescriptors()) {
+                    if (attribute instanceof GeometryDescriptor) {
+                        GeometryDescriptor geomDesc = (GeometryDescriptor) attribute;
+                        builder.add(geomDesc.getLocalName(), geomDesc.getType().getBinding());
+                    } else {
+                        builder.add(attribute.getName().getLocalPart(), attribute.getType().getBinding());
+                    }
+                }
+
+                SimpleFeatureType newSchema = builder.buildFeatureType();
+                dataStore.createSchema(newSchema); // 새 스키마로 테이블 생성
+                // 새로 생성한 테이블에 대한 SimpleFeatureStore를 얻음
+                SimpleFeatureStore featureStore = (SimpleFeatureStore) dataStore.getFeatureSource(layerId);
+                featureStore.setTransaction(transaction);
+
+                // 변환 작업
+                CoordinateReferenceSystem targetCRS = CRS.decode("EPSG:5187", true);
+                CoordinateReferenceSystem sourceCRS = schema.getCoordinateReferenceSystem();
+                String srs = CRS.toSRS(sourceCRS);
+                boolean needTrans = ((sourceCRS != null) && (!srs.equals("Korea_2000_Korea_East_Belt_2010")) && (!srs.equals("EPSG:5187")));
+                if (needTrans) {
+                    MathTransform transform = CRS.findMathTransform(sourceCRS, targetCRS, true);
+                    List<SimpleFeature> newFeatures = new ArrayList<>();
+                    try (SimpleFeatureIterator iter = fileDataStore.getFeatureSource().getFeatures().features()) {
+                        while (iter.hasNext()) {
+                            SimpleFeature feature = iter.next();
+                            SimpleFeatureBuilder newBuilder = new SimpleFeatureBuilder(newSchema);
+
+                            for (AttributeDescriptor descriptor : schema.getAttributeDescriptors()) {
+                                Object value = feature.getAttribute(descriptor.getName());
+                                if (value instanceof Geometry && needTrans) {
+                                    value = JTS.transform((Geometry) value, transform);
+                                }
+                                newBuilder.set(descriptor.getName(), value);
+                            }
+
+                            SimpleFeature newFeature = newBuilder.buildFeature(null);
+                            newFeatures.add(newFeature);
+                        }
+                    }
+                    SimpleFeatureCollection collection = new ListFeatureCollection(newSchema, newFeatures);
+                    featureStore.addFeatures(collection);
+                } else {
+                    featureStore.addFeatures(fileDataStore.getFeatureSource().getFeatures());
+                }
+
+                transaction.commit();
+                ctResult = "SUCCESS";
+                dataStore.dispose();
+                fileDataStore.dispose();
+            } else {
+                ctResult = "dataStore is Null Fail";
+            }
+        }
+        catch (Exception e) {
+            ctResult = e.getMessage();
+            e.printStackTrace();
+            transaction.rollback();
+        }
+        finally {
+            transaction.close();
+        }
+
+        return ctResult;
+    }
+
+    // 원본 되던거
+    public String createTableByShp0(Path shpFilePath, String layerId) throws IOException {
         String ctResult = "fail"; // 초기값을 실패로 설정
         DataStore dataStore = null;
         ShapefileDataStore fileDataStore = null;
@@ -129,7 +217,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
 
                 SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
                 builder.setName(layerId);
-                
+
                 // 좌표계가 정의되어 있는데 그게 5187 아닐때만 변환실행
                 CoordinateReferenceSystem sourceCRS = schema.getCoordinateReferenceSystem();
                 String srs = CRS.toSRS(sourceCRS);
@@ -151,7 +239,6 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                 }
                 builder.setCRS(CRS.decode("EPSG:5187"));
 
-
                 for (AttributeDescriptor attribute : schema.getAttributeDescriptors()) {
                     if (attribute instanceof GeometryDescriptor) {
                         GeometryDescriptor geomDesc = (GeometryDescriptor) attribute;
@@ -159,12 +246,10 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
                     } else {
                         // 속성 추가 예제
                         String attributeName = attribute.getName().getLocalPart();
-                        byte[] encodedValue = attributeName.getBytes(Charset.forName("EUC-KR"));
+                       /* byte[] encodedValue = attributeName.getBytes(Charset.forName("EUC-KR"));
                         String key = new String(encodedValue, Charset.forName("EUC-KR"));
-
-                        Class<?> attributeType = attribute.getType().getBinding();
-
-                        builder.add(key, attributeType);
+                        builder.add(key, attribute.getType().getBinding());*/
+                        builder.add(attributeName, attribute.getType().getBinding());
                     }
                 }
 
@@ -290,7 +375,7 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
 
     @Override
     public byte[] getBlob(String layerName) {
-        return (byte[])mDAO.getBlob(layerName).get("bdata");
+        return (byte[]) mDAO.getBlob(layerName).get("bdata");
     }
 
 
