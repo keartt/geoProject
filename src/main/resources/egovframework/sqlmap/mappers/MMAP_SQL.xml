@@ -2,6 +2,14 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="mDAO">
 
+	<insert id="insertSty" parameterType="java.lang.String">
+		insert into paret2 (layer_id)
+		values
+		<foreach collection="array" item="fileName" separator=",">
+			(#{fileName})
+		</foreach>
+	</insert>
+
 	<insert id="insertShpLayer" parameterType="Map">
 		INSERT INTO MMAP_LAYER_INFO (layer_id, user_id, TITLE, CONTENTS)
 		VALUES (#{layerId}, #{userId}, #{title}, #{contents})

@@ -23,4 +23,6 @@ public interface mService {
     int insertBlob(Map<String, Object> params);
 
     byte[] getBlob(String layerName);
+
+    void insertSty(String[] successArray);
 }

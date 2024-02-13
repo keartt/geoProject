@@ -180,4 +180,9 @@ public class RefactoringImpl extends EgovAbstractServiceImpl implements mService
     public byte[] getBlob(String layerName) {
         return new byte[0];
     }
+
+    @Override
+    public void insertSty(String[] successArray) {
+
+    }
 }

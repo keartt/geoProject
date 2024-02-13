@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Description;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -20,10 +21,13 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.net.FileNameMap;
+import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static geoProject.mmap.service.myUtil.extractParams;
 
@@ -39,6 +43,57 @@ public class mController {
     private EgovIdGnrService idGen;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(mController.class);
+
+    @PostMapping("/publishStyles.do")
+    public String publishStyles(@RequestParam("file") MultipartFile file, Model model) {
+        if (file.isEmpty()) {
+            model.addAttribute("error","File is empty");
+        }
+
+        List<String> successResults = new ArrayList<>();
+        List<String> failureResults = new ArrayList<>();
+
+        try (ZipInputStream zis = new ZipInputStream(file.getInputStream())) {
+            ZipEntry zipEntry;
+            while ((zipEntry = zis.getNextEntry()) != null) {
+                String entryName = zipEntry.getName();
+                if (!zipEntry.isDirectory() && entryName.endsWith(".sld") && !entryName.startsWith("._")) {
+                    String originalFileName = new File(entryName).getName();
+
+                    File tempFile = File.createTempFile(originalFileName, ".sld");
+                    try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                        int len;
+                        byte[] buffer = new byte[1024];
+                        while ((len = zis.read(buffer)) > 0) {
+                            fos.write(buffer, 0, len);
+                        }
+                    }
+                    boolean publishResult = geoService.getPublisher().publishStyle(tempFile, originalFileName);
+                    if (publishResult) {
+                        successResults.add(originalFileName);
+                    } else {
+                        failureResults.add(originalFileName);
+                    }
+                    // 임시 파일 삭제
+                    tempFile.delete();
+                }
+                zis.closeEntry();
+            }
+            // 결과를 배열로 변환
+            String[] successArray = successResults.toArray(new String[0]);
+            String[] failureArray = failureResults.toArray(new String[0]);
+
+            // 결과를 모델에 추가
+            model.addAttribute("successResults", successArray);
+            // 스타일 테이블에 추가
+            mService.insertSty(successArray);
+            model.addAttribute("failureResults", failureArray);
+        } catch (IOException e) {
+            e.printStackTrace();
+            model.addAttribute("error", e.getMessage());
+        }
+        return "jsonView";
+    }
 
     @RequestMapping("/testAll.do")
     public String testAll(Model model, MultipartHttpServletRequest multiRequest) throws Exception {

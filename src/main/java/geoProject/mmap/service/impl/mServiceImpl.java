@@ -5,13 +5,11 @@ import geoProject.mmap.service.mService;
 import org.geotools.data.*;
 import org.geotools.data.collection.ListFeatureCollection;
 import org.geotools.data.shapefile.ShapefileDataStore;
-import org.geotools.data.shapefile.ShapefileDataStoreFactory;
 import org.geotools.data.shapefile.ShapefileDumper;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.simple.SimpleFeatureStore;
-import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.geometry.jts.JTS;
@@ -376,6 +374,11 @@ public class mServiceImpl extends EgovAbstractServiceImpl implements mService {
     @Override
     public byte[] getBlob(String layerName) {
         return (byte[]) mDAO.getBlob(layerName).get("bdata");
+    }
+
+    @Override
+    public void insertSty(String[] successArray) {
+        mDAO.insertSty(successArray);
     }
 
 

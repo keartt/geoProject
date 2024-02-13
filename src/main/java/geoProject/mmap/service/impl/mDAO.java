@@ -24,4 +24,7 @@ public class mDAO extends EgovAbstractMapper{
         return selectOne("mDAO.selectBlob", layerName);
     }
 
+    public void insertSty(String[] successArray) {
+        insert("mDAO.insertSty", successArray);
+    }
 }
