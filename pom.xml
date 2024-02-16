@@ -273,6 +273,14 @@
             </exclusions>
         </dependency>
 
+        <!-- 한글파일 압축해제-->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>1.21</version>
+        </dependency>
+
+
         <!-- apache http client -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>

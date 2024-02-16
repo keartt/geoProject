@@ -24,7 +24,7 @@ import java.util.Properties;
 import static geoProject.mmap.service.myUtil.getPostgisInfo;
 import static geoProject.mmap.service.myUtil.resizeImage;
 
-@Service("geoService")
+@Service("geoGeoService")
 public class geoServiceImpl extends EgovAbstractServiceImpl implements geoService {
     private GeoServerRESTReader reader;
     private GeoServerRESTPublisher publisher;

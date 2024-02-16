@@ -1,11 +1,8 @@
 package geoProject.mmap.web;
 
-import com.sun.org.apache.xpath.internal.operations.Mod;
 import egovframework.rte.fdl.idgnr.EgovIdGnrService;
 import geoProject.mmap.service.geoService;
 import geoProject.mmap.service.mService;
-import org.geotools.referencing.CRS;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Description;
@@ -19,12 +16,10 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.FileNameMap;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -36,7 +31,7 @@ public class mController {
     @Resource(name = "mService")
     private mService mService;
 
-    @Resource(name = "geoService")
+    @Resource(name = "geoGeoService")
     private geoService geoService;
 
     @Resource(name = "idGnrMmap")
@@ -159,15 +154,13 @@ public class mController {
         String[] geomType = mService.getGeomType(shpFile, layerId);
         model.addAttribute("geomType", geomType[0]);
         if (geomType[0] != null){
-            // 지옴 타입에 맞춰서 스타일 조회 후 반환 ㅇㄹㅇㄹㅇ ㅇ라어림ㅇ러 ㅇㄴㄹㅇ니ㅏㄹ
 
             model.addAttribute("styleList", null);
         }
-//        model.addAttribute("ctResult", geomType[1]);
         return "jsonView";
     }
 
-    @Description("shp 파일 업로드")
+    @Description("shp 파일 업로드 후 이미지 base64 return")
     @RequestMapping("/uploadShpFile.do")
     public String uploadShpFile(Model model, MultipartHttpServletRequest multiRequest) throws IOException {
 //        1. 파일 읽어서 shp 파일 테이블 생성 (userId + reg_dt)
@@ -230,17 +223,19 @@ public class mController {
     }
 
 
-    @Description("레이어 미리보기 이미지 List")
-    @RequestMapping("/getLayerPreviewImgList.do")
-    public String getLayerPreviewImgList(Model model, @RequestBody Map<String, Object> data) {
-
-        // select 아이디, 블롭 from 레이어테이블 where 아이디 in
-        // <foreach item="item" index="index" collection="data" open="(" separator="," close=")">
-        // #{item} </foreach>
-
-        model.addAttribute("imgList", null);
-        return "jsonView";
-    }
+//    @Description("레이어 미리보기 이미지 List")
+//    @RequestMapping("/getLayerPreviewImgList.do")
+//    public String getLayerPreviewImgList(Model model, @RequestBody Map<String, Object> data) {
+//
+////        // select 아이디, 블롭 from 레이어테이블 where 아이디 in
+////         <foreach item="item" index="index" collection="data" open="(" separator="," close=")">
+////
+////         #{item}
+////        </foreach>
+//
+//        model.addAttribute("imgList", null);
+//        return "jsonView";
+//    }
 
     @Description("테이블명으로 zip 파일 다운로드")
     @RequestMapping(value = "/testD.do", produces = "application/zip")
