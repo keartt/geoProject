@@ -15,12 +15,12 @@
 		</foreach>
 		ON CONFLICT ("lyr_id", "dept_cd") DO NOTHING;
 	</insert>
-	
+
 	<select id="getStyleList" parameterType="java.lang.String" resultType="Map">
 		SELECT sty_id, sty_nm
-			FROM SCDTW_LYR_STY_MNG
+		FROM SCDTW_LYR_STY_MNG
 		WHERE bsc_pvsn_yn = 'y'
-			AND sty_type_nm = #{value}
+		  AND sty_type_nm = #{value}
 	</select>
 
 	<insert id="insertStyList" parameterType="Map">
@@ -43,26 +43,33 @@
 
 	<select id="pmaIsGeomTypeSame" parameterType="Map" resultType="boolean">
 		SELECT
-		CASE
-			WHEN EXISTS (
-				SELECT REPLACE(ST_GeometryType(the_geom), 'ST_', '') AS geomType
+			CASE
+				WHEN EXISTS (
+					SELECT REPLACE(ST_GeometryType(the_geom), 'ST_', '') AS geomType
 					FROM ${lyr_id}
-				GROUP BY geomType
-			INTERSECT
-				SELECT sty_type_nm
+					GROUP BY geomType
+					INTERSECT
+					SELECT sty_type_nm
 					FROM SCDTW_LYR_STY_MNG
-				WHERE sty_id = #{sty_id}
+					WHERE sty_id = #{sty_id}
 					GROUP BY sty_type_nm
-			) THEN true
-			ELSE false
-		END AS result;
+				) THEN true
+				ELSE false
+				END AS result;
 	</select>
+
+	<insert id ="insertNewSty" parameterType="Map" >
+		INSERT INTO scdtw_lyr_sty_mng
+			(sty_id, sty_nm, sty_type_nm, bsc_pvsn_yn, reg_id, reg_dt)
+		VALUES(#{sty_id}, #{sty_nm}, #{sty_type_nm}, 'N', #{reg_id}, CURRENT_TIMESTAMP);
+
+	</insert>
 
 	<delete id="deleteLyrTbl" parameterType="Map">
 		DELETE
-			FROM SCDTW_FILE_ULD_LYR_MNG
-	    WHERE lyr_id = #{lyr_id}
-			AND reg_id = #{reg_id}
+		FROM SCDTW_FILE_ULD_LYR_MNG
+		WHERE lyr_id = #{lyr_id}
+		  AND reg_id = #{reg_id}
 	</delete>
 
 	<update id="dropShpTbl" parameterType="java.lang.String">

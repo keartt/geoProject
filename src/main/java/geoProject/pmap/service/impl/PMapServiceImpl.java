@@ -191,7 +191,7 @@ public class PMapServiceImpl extends EgovAbstractServiceImpl implements PMapServ
 
         Timestamp reg_dt = new Timestamp(
                 new SimpleDateFormat("yyyyMMddHHmmss")
-                        .parse(lyr_id.split("_")[1])
+                        .parse(lyr_id.split("_")[lyr_id.split("_").length - 1]) // 마지막 값을 사용
                         .getTime());
 
         params.put("reg_dt", reg_dt);
@@ -307,6 +307,11 @@ public class PMapServiceImpl extends EgovAbstractServiceImpl implements PMapServ
         }
         // 둘 다 삭제됐을 경우 return true
         return deleteLyrTbl && dropShpTbl;
+    }
+
+    @Override
+    public int insertNewSty(Map<String, Object> data) {
+        return pMapDAO.insertNewSty(data);
     }
 
     // datastore close

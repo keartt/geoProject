@@ -108,7 +108,7 @@ public class GeoServiceImpl extends EgovAbstractServiceImpl implements GeoServic
             } else {
                 throw new HttpResponseException(response.getStatusLine().getStatusCode(), "FAIL GET geoserverImg");
             }
-        } catch (IOException | RuntimeException  e) {
+        } catch (IOException | RuntimeException e) {
             return null;
         } finally {
             httpClient.getConnectionManager().shutdown();

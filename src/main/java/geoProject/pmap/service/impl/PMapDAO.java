@@ -45,4 +45,7 @@ public class PMapDAO extends EgovAbstractMapper {
         update("dropShpTbl", lyrId);
     }
 
+    public int insertNewSty(Map<String, Object> data) {
+        return (int) insert("pmapDAO.insertNewSty", data);
+    }
 }

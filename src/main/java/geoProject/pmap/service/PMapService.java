@@ -11,7 +11,6 @@ import java.util.Map;
 
 public interface PMapService {
 
-
     String[] getGeomType(MultipartFile shpFile) throws IOException;
 
     String createTableByShp(MultipartFile zipFile, String layerId);
@@ -27,4 +26,6 @@ public interface PMapService {
     boolean existTable(String lyrId);
 
     boolean dropShpTable(String lyrId, String userId);
+
+    int insertNewSty(Map<String, Object> data);
 }
