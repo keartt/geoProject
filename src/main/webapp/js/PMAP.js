@@ -193,4 +193,90 @@ var PMAP ={
             });
         });
     },
+
+}
+var customStyle ={
+    test: function (lyr_id) {
+        // ajax 로 디비를 조회해서 레이어 의 스타일과 geom type get
+        // geoserver 를 통해 style sld 파일 파싱
+        // 파싱한 sld 의 컬럼을 data 로 받아서 return
+        // 해당 데이터를 통해 아래 셋중 하나 선택해서 스타일 리턴
+        return $.ajax({
+            url: '/pmap/getStyByLyrId.do',
+            data: {'lyr_id': lyr_id},
+            dataType: 'json',
+            type: 'post',
+        }).then(function (res) {
+            var style;
+            switch (res.geomType) {
+                case 'MultiLineString':
+                    style = this.LINE(res.data);
+                    break;
+                case 'MultiPolygon':
+                    style = this.POLYGON(res.data);
+                    break;
+                case 'rectangle':
+                    style = this.POINT(res.data);
+                    break;
+                default:
+                    style = null; // 기본값으로 설정
+                    break;
+            }
+            return style;
+        }.bind(this));
+    },
+    LINE: function (data) {
+        return new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: data.stroke,
+                width: data.stroke-width,
+                lineCap: 'round',
+                lineJoin: 'round',
+                lineDash: data.dasharray // 대시 배열
+            })
+        })
+    },
+    POLYGON: function (data) {
+        return new ol.style.Style({
+            fill: new ol.style.Fill({
+                color: 'rgba(' + ol.color.asArray(data.fill).join(',') + ',' + data.opacity + ')' // 채우기 색상과 투명도 설정
+            }),
+            stroke: new ol.style.Stroke({
+                color: data.stroke,
+                lineJoin: 'bevel' // 선의 모서리 스타일 설정
+            })
+        });
+    },
+    POINT: function (data) {
+        var points;
+        switch (data.wellKnownName) {
+            case 'circle':
+                points = Infinity;
+                break;
+            case 'equilateral_triangle':
+                points = 3;
+                break;
+            case 'rectangle':
+                points = 4;
+                break;
+            case 'diamond':
+                points = 5;
+                break;
+        }
+
+        return new ol.style.Style({
+            image: new ol.style.RegularShape({
+                fill: new ol.style.Fill({
+                    color: data.fill // 채우기 색상 설정
+                }),
+                stroke: new ol.style.Stroke({
+                    color: data.stroke, // 외곽선 색상 설정
+                    width: 2 // 외곽선의 너비 설정
+                }),
+                radius: data.size, // 원의 반지름 설정
+                points: points
+            })
+        });
+    },
+
 }
